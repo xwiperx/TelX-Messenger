@@ -37,7 +37,7 @@ jobs:
           name: TelX-APK
           path: TelX-debug.apk
 
-      - name: Publish to GitHub Releases (tag: latest)
+      - name: "Publish to GitHub Releases (latest tag)"
         uses: ncipollo/release-action@v1
         with:
           tag: latest
