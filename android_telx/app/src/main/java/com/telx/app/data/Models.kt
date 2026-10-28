@@ -135,6 +135,14 @@ class Story(j: JSONObject) {
     val duration: Int = j.optInt("duration", 15)
     val ts: Long = j.optLong("ts", 0)
     val views: Int = j.optInt("views", 0)
+
+    companion object {
+        fun parseArray(arr: org.json.JSONArray?): List<Story> {
+            val out = ArrayList<Story>()
+            if (arr != null) for (i in 0 until arr.length()) out.add(Story(arr.getJSONObject(i)))
+            return out
+        }
+    }
 }
 
 class StoryGroup(j: JSONObject) {

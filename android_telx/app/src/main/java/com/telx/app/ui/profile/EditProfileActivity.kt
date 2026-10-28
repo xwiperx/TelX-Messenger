@@ -8,6 +8,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
 import android.widget.ImageView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
@@ -16,6 +17,7 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.telx.app.R
 import com.telx.app.data.Prefs
+import com.telx.app.data.optStringOrNull
 import com.telx.app.net.Api
 import com.telx.app.ui.MainActivity
 import com.telx.app.ui.common.AvatarView
@@ -46,7 +48,7 @@ class EditProfileActivity : AppCompatActivity() {
     private lateinit var btnSave: MaterialButton
 
     private val pickAvatar = registerForActivityResult(
-        android.app.ActivityResultContracts.OpenDocument()) { uri ->
+        ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             try {
                 contentResolver.takePersistableUriPermission(

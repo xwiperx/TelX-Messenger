@@ -58,8 +58,8 @@ object Helpers {
         else (parts[0].take(1) + parts[1].take(1)).uppercase(Locale.US)
     }
 
-    fun toast(context: Context?, msg: String) {
-        if (context == null) return
+    fun toast(context: Context?, msg: String?) {
+        if (context == null || msg == null) return
         android.os.Handler(context.mainLooper).post {
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
         }

@@ -74,7 +74,7 @@ class MessageAdapter(
         val text: TextView = v.findViewById(R.id.msg_system_text)
     }
 
-    class BubbleVH(v: View, adapter: MessageAdapter) : RecyclerView.ViewHolder(v) {
+    class BubbleVH(v: View, private val adapter: MessageAdapter) : RecyclerView.ViewHolder(v) {
         private val replyBlock: View = v.findViewById(R.id.msg_reply_block)
         private val replyName: TextView = v.findViewById(R.id.msg_reply_name)
         private val replyText: TextView = v.findViewById(R.id.msg_reply_text)
@@ -127,7 +127,7 @@ class MessageAdapter(
                 "photo", "gif", "video" -> {
                     image.visibility = View.VISIBLE
                     image.adjustViewBounds = true
-                    image.maximumWidth = maxW
+                    image.maxWidth = maxW
                     val url = m.media ?: m.thumb
                     Glide.with(image).load(url).placeholder(R.drawable.media_placeholder)
                         .override(720).into(image)
@@ -186,7 +186,7 @@ class MessageAdapter(
                     else -> {
                         status.visibility = View.GONE
                         ticks.visibility = View.VISIBLE
-                        ticks.setImageResource(if (m.id > 0 && m.id <= peerReadId) R.drawable.ic_read else R.drawable.ic_check_single)
+                        ticks.setImageResource(if (m.id > 0 && m.id <= adapter.peerReadId) R.drawable.ic_read else R.drawable.ic_check_single)
                     }
                 }
             } else {

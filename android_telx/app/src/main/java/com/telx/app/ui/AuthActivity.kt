@@ -207,7 +207,7 @@ class AuthActivity : AppCompatActivity() {
                 "credentials" -> { tilPassword.error = e.message; return true }
                 "code" -> { tilCode.error = e.message; return true }
                 "invalid" -> { Helpers.toast(this, e.message); return true }
-                else -> { Helpers.toast(this, e.message.ifEmpty { "Connection error" }); return true }
+                else -> { Helpers.toast(this, e.message?.ifEmpty { "Connection error" } ?: "Connection error"); return true }
             }
         }
         Helpers.toast(this, "Network error — check your connection")

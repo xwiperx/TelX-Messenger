@@ -46,7 +46,7 @@ class SessionsActivity : AppCompatActivity() {
                         try {
                             withContext(Dispatchers.IO) { Api.revokeSession(s.id) }
                             load()
-                        } catch (e: Exception) { Helpers.toast(this, "Failed") }
+                        } catch (e: Exception) { Helpers.toast(this@SessionsActivity, "Failed") }
                     }
                 }
                 .setNegativeButton("Cancel", null).show()

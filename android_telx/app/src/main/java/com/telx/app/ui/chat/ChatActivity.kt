@@ -311,8 +311,9 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
 
     private fun saveDraft() {
         val d = input.text?.toString() ?: ""
-        if (d.isNotEmpty()) Api.tryCall("chats", "set_draft",
-            JSONObject().put("chat_id", chatId).put("draft", d))
+        if (d.isNotEmpty()) Api.tryCall("chats", "set_draft") {
+            put("chat_id", chatId); put("draft", d)
+        }
     }
 
     // ---------- events ----------

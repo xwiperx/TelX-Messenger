@@ -65,9 +65,9 @@ object Api {
         return sb.toString()
     }
 
-    /** Executes an API action; throws ApiErr on failure. */
-    fun call(endpoint: String, action: String, params: () -> JSONObject = { JSONObject() }): JSONObject {
-        val body = params()
+    /** Executes an API action; throws ApiErr on failure. params is applied on a fresh JSONObject. */
+    fun call(endpoint: String, action: String, params: JSONObject.() -> Unit = {}): JSONObject {
+        val body = JSONObject().apply(params)
         body.put("action", action)
         val url = API + endpoint + ".php"
         val r = request(url, body, READ_TIMEOUT)
@@ -76,8 +76,8 @@ object Api {
         return r.j
     }
 
-    fun tryCall(endpoint: String, action: String, params: JSONObject = JSONObject()): JSONObject? =
-        try { call(endpoint, action) { params } } catch (e: Exception) { null }
+    fun tryCall(endpoint: String, action: String, params: JSONObject.() -> Unit = {}): JSONObject? =
+        try { call(endpoint, action, params) } catch (e: Exception) { null }
 
     // ---------------- auth ----------------
     fun checkUsername(u: String): Pair<Boolean, String?> {
