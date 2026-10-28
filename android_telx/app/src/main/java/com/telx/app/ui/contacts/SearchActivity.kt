@@ -20,6 +20,7 @@ import com.telx.app.net.Api
 import com.telx.app.ui.chat.ChatActivity
 import com.telx.app.ui.common.AvatarView
 import com.telx.app.ui.common.Helpers
+import com.telx.app.ui.profile.UserProfileActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
