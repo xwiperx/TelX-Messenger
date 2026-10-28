@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/chat_search"
+        android:title="Search in chat"
+        android:icon="@drawable/ic_search"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/chat_mute"
+        android:title="Mute / Unmute"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/chat_clear"
+        android:title="Clear history"
+        app:showAsAction="never" />
+</menu>

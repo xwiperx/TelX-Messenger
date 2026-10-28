@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
+        <LinearLayout android:id="@+id/row_new_group"
+            android:layout_width="match_parent" android:layout_height="52dp"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:paddingStart="16dp" android:paddingEnd="16dp"
+            android:background="?android:attr/selectableItemBackground">
+            <ImageView android:layout_width="24dp" android:layout_height="24dp"
+                android:src="@drawable/ic_group" app:tint="#FFFFFF"
+                android:background="@drawable/badge_unread" android:padding="4dp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="20dp" android:text="New Group" android:textSize="16sp"
+                android:textColor="@color/text_primary" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/row_blocked"
+            android:layout_width="match_parent" android:layout_height="52dp"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:paddingStart="16dp" android:paddingEnd="16dp"
+            android:background="?android:attr/selectableItemBackground">
+            <ImageView android:layout_width="24dp" android:layout_height="24dp"
+                android:src="@drawable/ic_block" app:tint="#FFFFFF"
+                android:background="@drawable/badge_muted" android:padding="4dp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="20dp" android:text="Blocked Users" android:textSize="16sp"
+                android:textColor="@color/text_primary" />
+        </LinearLayout>
+        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" android:layout_marginTop="6dp" />
+        <androidx.recyclerview.widget.RecyclerView android:id="@+id/contacts_recycler"
+            android:layout_width="match_parent" android:layout_height="match_parent"
+            tools:listitem="@layout/item_contact" />
+    </LinearLayout>
+    <TextView android:id="@+id/contacts_empty" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="center" android:text="No contacts yet\nTap + to add by username"
+        android:gravity="center" android:textColor="@color/text_secondary" android:visibility="gone" />
+    <com.google.android.material.floatingactionbutton.FloatingActionButton android:id="@+id/fab_add"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end" android:layout_margin="18dp"
+        android:src="@drawable/ic_person" app:tint="#FFFFFF" app:backgroundTint="@color/tg_blue"
+        app:borderWidth="0dp" app:elevation="6dp" />
+</FrameLayout>

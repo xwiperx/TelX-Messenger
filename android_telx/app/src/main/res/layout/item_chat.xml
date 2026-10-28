@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent" android:layout_height="72dp"
+    android:orientation="horizontal" android:gravity="center_vertical"
+    android:paddingStart="12dp" android:paddingEnd="14dp"
+    android:background="?android:attr/selectableItemBackground">
+    <com.telx.app.ui.common.AvatarView android:id="@+id/chat_avatar" android:layout_width="52dp" android:layout_height="52dp" />
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+        android:orientation="vertical" android:layout_marginStart="12dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:id="@+id/chat_title" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:textSize="16sp" android:textStyle="bold"
+                android:textColor="@color/text_primary" android:maxLines="1" android:ellipsize="end" />
+            <ImageView android:id="@+id/chat_pinned" android:layout_width="14dp" android:layout_height="14dp"
+                android:layout_marginStart="6dp" android:src="@drawable/ic_pin" app:tint="@color/text_secondary" android:visibility="gone" />
+            <TextView android:id="@+id/chat_time" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="6dp" android:textSize="12sp" android:textColor="@color/text_secondary" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="2dp">
+            <ImageView android:id="@+id/chat_out" android:layout_width="15dp" android:layout_height="15dp"
+                android:src="@drawable/ic_check_single" app:tint="@color/tg_blue" android:visibility="gone" />
+            <ImageView android:id="@+id/chat_ticks" android:layout_width="17dp" android:layout_height="17dp"
+                android:layout_marginStart="4dp" android:visibility="gone" />
+            <TextView android:id="@+id/chat_preview" android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:textSize="14sp" android:textColor="@color/text_secondary"
+                android:maxLines="1" android:ellipsize="end" android:layout_marginStart="4dp" />
+            <ImageView android:id="@+id/chat_muted" android:layout_width="15dp" android:layout_height="15dp"
+                android:src="@drawable/ic_muted" app:tint="@color/text_secondary" android:visibility="gone"
+                android:layout_marginEnd="4dp" />
+            <TextView android:id="@+id/chat_unread" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:minWidth="22dp" android:gravity="center" android:paddingStart="6dp" android:paddingEnd="6dp"
+                android:paddingTop="2dp" android:paddingBottom="2dp" android:textSize="12sp" android:textColor="#FFFFFF"
+                android:background="@drawable/badge_unread" android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

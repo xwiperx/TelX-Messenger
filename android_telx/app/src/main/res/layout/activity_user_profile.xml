@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@color/window_bg">
+    <androidx.appcompat.widget.Toolbar android:id="@+id/up_toolbar"
+        android:layout_width="match_parent" android:layout_height="?attr/actionBarSize"
+        android:background="@color/toolbar_bg" />
+    <ScrollView android:layout_width="match_parent" android:layout_height="match_parent">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:gravity="center_horizontal" android:padding="24dp">
+            <com.telx.app.ui.common.AvatarView android:id="@+id/up_avatar" android:layout_width="110dp" android:layout_height="110dp" android:layout_marginTop="16dp" />
+            <TextView android:id="@+id/up_name" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="16dp" android:textSize="22sp" android:textStyle="bold" android:textColor="@color/text_primary" />
+            <TextView android:id="@+id/up_status" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="2dp" android:textSize="13sp" android:textColor="@color/tg_blue" />
+            <TextView android:id="@+id/up_username" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="12dp" android:textSize="15sp" android:textColor="@color/tg_blue" />
+            <TextView android:id="@+id/up_bio" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="6dp" android:textSize="14sp" android:textColor="@color/text_secondary" android:gravity="center" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/up_message"
+                android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="24dp"
+                android:text="Send Message" app:cornerRadius="25dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/up_contact"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="10dp"
+                android:text="Add Contact" app:cornerRadius="25dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/up_block"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="10dp"
+                android:text="Block" app:cornerRadius="25dp" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

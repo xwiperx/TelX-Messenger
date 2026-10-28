@@ -1,7 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="tg_blue">#3390EC</color>
-    <color name="tg_blue_dark">#2B7FD4</color>
-    <color name="tg_dark_panel">#17212B</color>
-    <color name="white">#FFFFFF</color>
+    <color name="tg_blue_dark">#2B7CD3</color>
+    <color name="tg_blue_light">#E7F0FD</color>
+    <color name="bubble_mine">#EEFFDE</color>
+    <color name="bubble_mine_dark">#7DA854</color>
+    <color name="bubble_their">#FFFFFF</color>
+    <color name="bubble_their_dark">#212121</color>
+    <color name="text_primary">#000000</color>
+    <color name="text_secondary">#8A8A8E</color>
+    <color name="text_primary_dark">#FFFFFF</color>
+    <color name="text_secondary_dark">#ABABAB</color>
+    <color name="chat_bg">#D6E3EE</color>
+    <color name="chat_bg_dark">#0F0F0F</color>
+    <color name="divider">#E6E6EA</color>
+    <color name="divider_dark">#2C2C2C</color>
+    <color name="window_bg">#FFFFFF</color>
+    <color name="window_bg_dark">#17212B</color>
+    <color name="toolbar_bg">#FFFFFF</color>
+    <color name="toolbar_bg_dark">#17212B</color>
+    <color name="online_green">#31B645</color>
+    <color name="error_red">#E53935</color>
+    <color name="accent_purple">#7E57C2</color>
+    <color name="tile_bg">#F4F4F5</color>
+    <color name="tile_bg_dark">#232E3A</color>
+    <color name="input_bg">#FFFFFF</color>
+    <color name="input_bg_dark">#232E3A</color>
 </resources>

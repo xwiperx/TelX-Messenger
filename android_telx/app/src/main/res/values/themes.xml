@@ -1,8 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="Theme.TelX" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:statusBarColor">@color/tg_blue</item>
-        <item name="android:navigationBarColor">@color/tg_dark_panel</item>
-        <item name="android:windowBackground">@color/tg_dark_panel</item>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.TelX" parent="Theme.Material3.DayNight">
+        <item name="colorPrimary">@color/tg_blue</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorPrimaryContainer">@color/tg_blue_light</item>
+        <item name="colorSecondary">@color/tg_blue</item>
+        <item name="android:colorBackground">@color/window_bg</item>
+        <item name="colorSurface">@color/window_bg</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="android:statusBarColor">@color/toolbar_bg</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="23">true</item>
+        <item name="android:navigationBarColor">@color/window_bg</item>
+    </style>
+
+    <style name="Theme.TelX.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
+
+    <style name="Theme.TelX.Story">
+        <item name="android:windowBackground">#000000</item>
+        <item name="android:statusBarColor">#000000</item>
+        <item name="android:navigationBarColor">#000000</item>
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
     </style>
 </resources>

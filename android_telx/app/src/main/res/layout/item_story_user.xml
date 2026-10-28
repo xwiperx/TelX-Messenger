@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="72dp" android:layout_height="wrap_content"
+    android:orientation="vertical" android:gravity="center_horizontal" android:paddingStart="6dp" android:paddingEnd="6dp">
+    <FrameLayout android:layout_width="64dp" android:layout_height="64dp">
+        <ImageView android:id="@+id/story_ring" android:layout_width="64dp" android:layout_height="64dp"
+            android:src="@drawable/ring_unseen" />
+        <com.telx.app.ui.common.AvatarView android:id="@+id/story_avatar" android:layout_width="54dp" android:layout_height="54dp"
+            android:layout_gravity="center" />
+    </FrameLayout>
+    <TextView android:id="@+id/story_name" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="4dp" android:textSize="11sp" android:textColor="@color/text_primary" android:maxLines="1" android:ellipsize="end" />
+</LinearLayout>

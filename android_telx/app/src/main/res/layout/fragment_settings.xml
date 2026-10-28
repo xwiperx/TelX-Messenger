@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@color/window_bg" android:fillViewport="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+        <LinearLayout android:id="@+id/settings_header"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical" android:padding="18dp"
+            android:background="?android:attr/selectableItemBackground">
+            <FrameLayout android:layout_width="64dp" android:layout_height="64dp">
+                <com.telx.app.ui.common.AvatarView android:id="@+id/settings_avatar" android:layout_width="64dp" android:layout_height="64dp" />
+                <ImageView android:layout_width="22dp" android:layout_height="22dp"
+                    android:layout_gravity="bottom|end" android:src="@drawable/ic_camera"
+                    app:tint="#FFFFFF" android:background="@drawable/bg_camera_badge" android:padding="4dp" />
+            </FrameLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:orientation="vertical" android:layout_marginStart="14dp">
+                <TextView android:id="@+id/settings_name" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textSize="18sp" android:textStyle="bold" android:textColor="@color/text_primary" />
+                <TextView android:id="@+id/settings_username" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textSize="14sp" android:textColor="@color/tg_blue" />
+            </LinearLayout>
+        </LinearLayout>
+        <View android:layout_width="match_parent" android:layout_height="8dp" android:background="@color/tile_bg" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_height="56dp"
+            <ImageView android:layout_width="24dp" android:layout_height="24dp"
+                android:src="@drawable/ic_lock" app:tint="@color/tg_blue" />
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:layout_marginStart="20dp" android:text="Privacy Lock (no forward / screenshot)"
+                android:textSize="15sp" android:textColor="@color/text_primary" />
+            <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/sw_privacy_lock"
+                android:layout_width="wrap_content" android:layout_height="wrap_content" />
+        </LinearLayout>
+        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" android:layout_marginStart="60dp" />
+    <LinearLayout
+        android:id="@+id/row_theme"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_moon" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="Appearance (Dark Mode)" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/row_wallpaper"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_image" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="Chat Wallpaper" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/row_2fa"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_lock" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="Two-Step Verification" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/row_sessions"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_shield" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="Active Sessions" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/row_password"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_key" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="Change Password" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/row_blocked"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_block" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="Blocked Users" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/row_delete"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_trash" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="Delete Account" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <LinearLayout
+        android:id="@+id/row_logout"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_logout" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="Log Out" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+    </LinearLayout>
+</ScrollView>

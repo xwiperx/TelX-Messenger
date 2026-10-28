@@ -1,10 +1,7 @@
-# TelX Android project ignores
-*.iml
-.gradle/
-local.properties
-.idea/
-.DS_Store
+# TelX Android build outputs
 build/
-captures/
-.externalNativeBuild/
-.cxx/
+app/build/
+local.properties
+.gradle/
+*.iml
+.idea/

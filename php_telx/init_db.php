@@ -1,190 +1,201 @@
 <?php
-/**
- * TelX — init_db.php
- * Creates all tables (idempotent). Open once after uploading:
- *   https://mybackup-test.alwaysdata.net/telx/init_db.php
- */
+/* TelX — init_db.php : creates / refreshes the full database schema (13 tables) */
+define('TELX_API', 1);
 require __DIR__ . '/config.php';
 
+$fresh = !(isset($_GET['keep']) && $_GET['keep'] === '1');
+
 $tables = [
-    "CREATE TABLE IF NOT EXISTS tx_users (
-        id VARCHAR(40) PRIMARY KEY,
-        first_name VARCHAR(80) NOT NULL,
-        last_name VARCHAR(80) NOT NULL DEFAULT '',
-        username VARCHAR(32) NOT NULL UNIQUE,
-        email VARCHAR(190) NOT NULL UNIQUE,
-        password_hash VARCHAR(64) NOT NULL,
-        bio VARCHAR(255) NOT NULL DEFAULT '',
-        avatar_url VARCHAR(255) NULL,
-        privacy_lock TINYINT(1) NOT NULL DEFAULT 0,
-        two_factor_enabled TINYINT(1) NOT NULL DEFAULT 0,
-        two_factor_secret VARCHAR(8) NULL,
-        is_online TINYINT(1) NOT NULL DEFAULT 0,
-        last_seen DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        wallpaper VARCHAR(24) NOT NULL DEFAULT 'pattern1',
-        dark_mode TINYINT(1) NOT NULL DEFAULT 0,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+"users" => "CREATE TABLE IF NOT EXISTS users (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  first_name VARCHAR(64) NOT NULL,
+  last_name VARCHAR(64) NOT NULL DEFAULT '',
+  username VARCHAR(32) NOT NULL UNIQUE,
+  email VARCHAR(190) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  avatar VARCHAR(255) NULL,
+  bio VARCHAR(200) NOT NULL DEFAULT '',
+  privacy_lock TINYINT(1) NOT NULL DEFAULT 0,
+  twofa_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  last_seen DATETIME NULL,
+  created_at DATETIME NOT NULL,
+  INDEX idx_users_username (username)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    "CREATE TABLE IF NOT EXISTS tx_sessions (
-        id VARCHAR(40) PRIMARY KEY,
-        token VARCHAR(64) NOT NULL UNIQUE,
-        user_id VARCHAR(40) NOT NULL,
-        device VARCHAR(120) NOT NULL DEFAULT 'Unknown Device',
-        ip VARCHAR(64) NOT NULL DEFAULT '',
-        current TINYINT(1) NOT NULL DEFAULT 0,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        last_active DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        INDEX (user_id),
-        FOREIGN KEY (user_id) REFERENCES tx_users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+"sessions" => "CREATE TABLE IF NOT EXISTS sessions (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  token_hash CHAR(64) NOT NULL UNIQUE,
+  device VARCHAR(190) NOT NULL DEFAULT '',
+  ip VARCHAR(64) NOT NULL DEFAULT '',
+  created_at DATETIME NOT NULL,
+  last_active DATETIME NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_sessions_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    "CREATE TABLE IF NOT EXISTS tx_chats (
-        id VARCHAR(40) PRIMARY KEY,
-        type VARCHAR(16) NOT NULL DEFAULT 'private',
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+"verification_codes" => "CREATE TABLE IF NOT EXISTS verification_codes (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  purpose ENUM('twofa','reset') NOT NULL,
+  code_hash CHAR(64) NOT NULL,
+  used TINYINT(1) NOT NULL DEFAULT 0,
+  expires_at DATETIME NOT NULL,
+  created_at DATETIME NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_vc_user (user_id, purpose)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    "CREATE TABLE IF NOT EXISTS tx_chat_members (
-        id VARCHAR(40) PRIMARY KEY,
-        chat_id VARCHAR(40) NOT NULL,
-        user_id VARCHAR(40) NOT NULL,
-        unread_count INT NOT NULL DEFAULT 0,
-        muted TINYINT(1) NOT NULL DEFAULT 0,
-        last_read_message_id VARCHAR(40) NULL,
-        UNIQUE KEY uq_chat_user (chat_id, user_id),
-        INDEX (user_id),
-        FOREIGN KEY (chat_id) REFERENCES tx_chats(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES tx_users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+"contacts" => "CREATE TABLE IF NOT EXISTS contacts (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  contact_id BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL,
+  UNIQUE KEY uq_contact (user_id, contact_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (contact_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    "CREATE TABLE IF NOT EXISTS tx_messages (
-        id VARCHAR(40) PRIMARY KEY,
-        chat_id VARCHAR(40) NOT NULL,
-        sender_id VARCHAR(40) NOT NULL,
-        text TEXT,
-        type VARCHAR(16) NOT NULL DEFAULT 'text',
-        media_url VARCHAR(255) NULL,
-        file_name VARCHAR(190) NULL,
-        file_size INT NULL,
-        duration INT NULL,
-        reply_to_id VARCHAR(40) NULL,
-        forwarded_from VARCHAR(40) NULL,
-        forwarded_by_name VARCHAR(160) NULL,
-        preview_title VARCHAR(190) NULL,
-        preview_image VARCHAR(255) NULL,
-        preview_url VARCHAR(255) NULL,
-        preview_desc VARCHAR(255) NULL,
-        is_edited TINYINT(1) NOT NULL DEFAULT 0,
-        is_deleted TINYINT(1) NOT NULL DEFAULT 0,
-        pinned TINYINT(1) NOT NULL DEFAULT 0,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        edited_at DATETIME NULL,
-        INDEX (chat_id, created_at),
-        FOREIGN KEY (chat_id) REFERENCES tx_chats(id) ON DELETE CASCADE,
-        FOREIGN KEY (sender_id) REFERENCES tx_users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+"blocks" => "CREATE TABLE IF NOT EXISTS blocks (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  blocked_id BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL,
+  UNIQUE KEY uq_block (user_id, blocked_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (blocked_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    "CREATE TABLE IF NOT EXISTS tx_reactions (
-        id VARCHAR(40) PRIMARY KEY,
-        message_id VARCHAR(40) NOT NULL,
-        user_id VARCHAR(40) NOT NULL,
-        emoji VARCHAR(16) NOT NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_reaction (message_id, user_id, emoji),
-        FOREIGN KEY (message_id) REFERENCES tx_messages(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES tx_users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+"chats" => "CREATE TABLE IF NOT EXISTS chats (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  type ENUM('private','saved','group') NOT NULL DEFAULT 'private',
+  title VARCHAR(128) NULL,
+  avatar VARCHAR(255) NULL,
+  secret TINYINT(1) NOT NULL DEFAULT 0,
+  pinned_message_id BIGINT UNSIGNED NULL,
+  last_message_id BIGINT UNSIGNED NULL,
+  last_message_at DATETIME NULL,
+  auto_delete_secs INT UNSIGNED NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL,
+  INDEX idx_chats_last (last_message_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    "CREATE TABLE IF NOT EXISTS tx_message_reads (
-        id VARCHAR(40) PRIMARY KEY,
-        message_id VARCHAR(40) NOT NULL,
-        user_id VARCHAR(40) NOT NULL,
-        read_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_read (message_id, user_id),
-        INDEX (message_id),
-        FOREIGN KEY (message_id) REFERENCES tx_messages(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES tx_users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+"chat_members" => "CREATE TABLE IF NOT EXISTS chat_members (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  chat_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  role ENUM('admin','member') NOT NULL DEFAULT 'member',
+  muted TINYINT(1) NOT NULL DEFAULT 0,
+  pinned TINYINT(1) NOT NULL DEFAULT 0,
+  archived TINYINT(1) NOT NULL DEFAULT 0,
+  unread_count INT UNSIGNED NOT NULL DEFAULT 0,
+  last_read_message_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  last_delivered_message_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  draft TEXT NULL,
+  typing_at DATETIME NULL,
+  joined_at DATETIME NOT NULL,
+  UNIQUE KEY uq_member (chat_id, user_id),
+  FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_cm_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    "CREATE TABLE IF NOT EXISTS tx_contacts (
-        id VARCHAR(40) PRIMARY KEY,
-        user_id VARCHAR(40) NOT NULL,
-        contact_id VARCHAR(40) NOT NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_contact (user_id, contact_id),
-        FOREIGN KEY (user_id) REFERENCES tx_users(id) ON DELETE CASCADE,
-        FOREIGN KEY (contact_id) REFERENCES tx_users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+"messages" => "CREATE TABLE IF NOT EXISTS messages (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  chat_id BIGINT UNSIGNED NOT NULL,
+  sender_id BIGINT UNSIGNED NULL,
+  sender_name VARCHAR(96) NOT NULL DEFAULT '',
+  type ENUM('text','photo','file','voice','video','sticker','gif','system') NOT NULL DEFAULT 'text',
+  text MEDIUMTEXT NULL,
+  media VARCHAR(255) NULL,
+  thumb VARCHAR(255) NULL,
+  media_name VARCHAR(255) NOT NULL DEFAULT '',
+  media_size BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  media_duration INT UNSIGNED NOT NULL DEFAULT 0,
+  sticker VARCHAR(64) NULL,
+  link_json TEXT NULL,
+  reply_to BIGINT UNSIGNED NULL,
+  fwd_from_user_id BIGINT UNSIGNED NULL,
+  fwd_name VARCHAR(96) NOT NULL DEFAULT '',
+  encrypted TINYINT(1) NOT NULL DEFAULT 0,
+  edited_at DATETIME NULL,
+  deleted TINYINT(1) NOT NULL DEFAULT 0,
+  scheduled_at DATETIME NULL,
+  auto_delete_at DATETIME NULL,
+  created_at DATETIME NOT NULL,
+  FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+  INDEX idx_msg_chat (chat_id, id),
+  INDEX idx_msg_sched (scheduled_at, deleted),
+  INDEX idx_msg_autodel (auto_delete_at, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    "CREATE TABLE IF NOT EXISTS tx_stories (
-        id VARCHAR(40) PRIMARY KEY,
-        user_id VARCHAR(40) NOT NULL,
-        media_url VARCHAR(255) NOT NULL,
-        media_type VARCHAR(8) NOT NULL DEFAULT 'image',
-        duration INT NOT NULL DEFAULT 15,
-        caption VARCHAR(220) NOT NULL DEFAULT '',
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        expires_at DATETIME NOT NULL,
-        INDEX (user_id, created_at),
-        FOREIGN KEY (user_id) REFERENCES tx_users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+"reactions" => "CREATE TABLE IF NOT EXISTS reactions (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  message_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  emoji VARCHAR(16) NOT NULL,
+  created_at DATETIME NOT NULL,
+  UNIQUE KEY uq_reaction (message_id, user_id),
+  FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    "CREATE TABLE IF NOT EXISTS tx_story_views (
-        id VARCHAR(40) PRIMARY KEY,
-        story_id VARCHAR(40) NOT NULL,
-        user_id VARCHAR(40) NOT NULL,
-        viewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_story_view (story_id, user_id),
-        FOREIGN KEY (story_id) REFERENCES tx_stories(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES tx_users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+"stories" => "CREATE TABLE IF NOT EXISTS stories (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  media VARCHAR(255) NOT NULL,
+  thumb VARCHAR(255) NULL,
+  media_type ENUM('photo','video') NOT NULL DEFAULT 'photo',
+  duration INT UNSIGNED NOT NULL DEFAULT 15,
+  created_at DATETIME NOT NULL,
+  expires_at DATETIME NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_story_user (user_id, id),
+  INDEX idx_story_exp (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    "CREATE TABLE IF NOT EXISTS tx_typing_states (
-        id VARCHAR(40) PRIMARY KEY,
-        chat_id VARCHAR(40) NOT NULL,
-        user_id VARCHAR(40) NOT NULL,
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_typing (chat_id, user_id),
-        FOREIGN KEY (user_id) REFERENCES tx_users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+"story_views" => "CREATE TABLE IF NOT EXISTS story_views (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  story_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  viewed_at DATETIME NOT NULL,
+  UNIQUE KEY uq_sview (story_id, user_id),
+  FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    "CREATE TABLE IF NOT EXISTS tx_password_resets (
-        id VARCHAR(40) PRIMARY KEY,
-        user_id VARCHAR(40) NOT NULL,
-        code VARCHAR(8) NOT NULL,
-        used TINYINT(1) NOT NULL DEFAULT 0,
-        expires_at DATETIME NOT NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        INDEX (user_id),
-        FOREIGN KEY (user_id) REFERENCES tx_users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+"events" => "CREATE TABLE IF NOT EXISTS events (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL,
+  type VARCHAR(24) NOT NULL,
+  chat_id BIGINT UNSIGNED NULL,
+  from_user BIGINT UNSIGNED NULL,
+  payload TEXT NULL,
+  created_at DATETIME NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_events_user (user_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    "CREATE TABLE IF NOT EXISTS tx_notifications (
-        id VARCHAR(40) PRIMARY KEY,
-        user_id VARCHAR(40) NOT NULL,
-        title VARCHAR(160) NOT NULL,
-        body VARCHAR(255) NOT NULL DEFAULT '',
-        chat_id VARCHAR(40) NULL,
-        `read` TINYINT(1) NOT NULL DEFAULT 0,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        INDEX (user_id, `read`),
-        FOREIGN KEY (user_id) REFERENCES tx_users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+"secret_keys" => "CREATE TABLE IF NOT EXISTS secret_keys (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NOT NULL UNIQUE,
+  pubkey TEXT NOT NULL,
+  updated_at DATETIME NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 ];
 
-$created = 0; $failed = [];
-foreach ($tables as $sql) {
-    try { db()->query($sql); $created++; }
-    catch (Throwable $e) { $failed[] = $e->getMessage(); }
+if ($fresh) {
+    $dropOrder = ['reactions','story_views','stories','messages','chat_members','chats','blocks','contacts',
+                  'verification_codes','sessions','secret_keys','events','users'];
+    foreach ($dropOrder as $t) db()->exec("DROP TABLE IF EXISTS `$t`");
 }
 
-ensure_upload_dir();
+$done = [];
+foreach ($tables as $name => $sql) { db()->exec($sql); $done[] = $name; }
 
-header('Content-Type: application/json; charset=utf-8');
-echo json_encode([
-    'ok'      => count($failed) === 0,
-    'message' => 'TelX database initialized — ' . $created . ' tables ready',
-    'tables'  => ['users','sessions','chats','chat_members','messages','reactions','message_reads','contacts','stories','story_views','typing_states','password_resets','notifications'],
-    'errors'  => $failed,
-], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+foreach (['uploads','uploads/photo','uploads/file','uploads/voice','uploads/video','uploads/avatar','uploads/group','uploads/story','uploads/gif','uploads/links','uploads/enc'] as $d) {
+    if (!is_dir(__DIR__ . '/' . $d)) @mkdir(__DIR__ . '/' . $d, 0777, true);
+}
+
+ok(['message' => 'TelX database ready (' . count($done) . ' tables)', 'tables' => $done, 'fresh' => $fresh]);

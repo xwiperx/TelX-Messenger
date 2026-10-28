@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="72dp" android:layout_height="wrap_content"
+    android:orientation="vertical" android:gravity="center_horizontal" android:paddingStart="10dp" android:paddingEnd="6dp">
+    <FrameLayout android:layout_width="64dp" android:layout_height="64dp">
+        <View android:layout_width="64dp" android:layout_height="64dp"
+            android:background="@drawable/ring_seen" />
+        <FrameLayout android:layout_width="56dp" android:layout_height="56dp" android:layout_gravity="center">
+            <View android:layout_width="match_parent" android:layout_height="match_parent"
+                android:background="@color/tile_bg" />
+            <ImageView android:layout_width="26dp" android:layout_height="26dp" android:layout_gravity="center"
+                android:src="@drawable/ic_add" app:tint="@color/tg_blue" />
+        </FrameLayout>
+    </FrameLayout>
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="4dp" android:text="Add story" android:textSize="11sp"
+        android:textColor="@color/text_secondary" android:maxLines="1" />
+</LinearLayout>

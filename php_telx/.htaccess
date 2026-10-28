@@ -1,26 +1,10 @@
-<?php
-/**
- * TelX — .htaccess
- * - Exposes uploads/ statically
- * - Blocks direct access to config
- * - Adds CORS + generous timeouts for long polling
- */
+# TelX server — hardening
 Options -Indexes
 
-<IfModule mod_headers.c>
-    Header set X-Content-Type-Options "nosniff"
-</IfModule>
-
-# Never serve these files directly
-<FilesMatch "\.(sql|log|md)$">
-    Require all denied
+<FilesMatch "\.(json|log|sql|bak)$">
+  Require all denied
 </FilesMatch>
 
-<IfModule mod_expires.c>
-    ExpiresActive On
-    ExpiresByType image/jpeg "access plus 1 year"
-    ExpiresByType image/png "access plus 1 year"
-    ExpiresByType image/webp "access plus 1 year"
-    ExpiresByType video/mp4 "access plus 1 year"
-    ExpiresByType audio/webm "access plus 1 year"
-</IfModule>
+<Files "config.php">
+  # keep readable by PHP but never listed
+</Files>
