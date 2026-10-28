@@ -43,6 +43,30 @@ object Helpers {
 
     fun duration(sec: Int): String = "%d:%02d".format(sec / 60, sec % 60)
 
+    /** Telegram-style date separator: Today / Yesterday / 14 March 2026 */
+    fun dateSeparator(ts: Long): String {
+        if (ts <= 0) return ""
+        val cal = java.util.Calendar.getInstance(Locale.US)
+        cal.timeInMillis = ts * 1000
+        val now = java.util.Calendar.getInstance(Locale.US)
+        return when {
+            DateUtils.isToday(ts * 1000) -> "Today"
+            android.text.format.DateUtils.isToday(ts * 1000 + 86400000L) -> "Yesterday"
+            cal.get(java.util.Calendar.YEAR) == now.get(java.util.Calendar.YEAR) ->
+                SimpleDateFormat("d MMMM", Locale.US).format(Date(ts * 1000))
+            else -> SimpleDateFormat("d MMMM yyyy", Locale.US).format(Date(ts * 1000))
+        }
+    }
+
+    /** true when a and b fall on different calendar days */
+    fun differentDay(a: Long, b: Long): Boolean {
+        if (a <= 0 || b <= 0) return true
+        val ca = java.util.Calendar.getInstance(Locale.US).apply { timeInMillis = a * 1000 }
+        val cb = java.util.Calendar.getInstance(Locale.US).apply { timeInMillis = b * 1000 }
+        return ca.get(java.util.Calendar.YEAR) != cb.get(java.util.Calendar.YEAR) ||
+                ca.get(java.util.Calendar.DAY_OF_YEAR) != cb.get(java.util.Calendar.DAY_OF_YEAR)
+    }
+
     private val palette = intArrayOf(
         0xFF7E57C2.toInt(), 0xFF5C6BC0.toInt(), 0xFF42A5F5.toInt(),
         0xFF29B6F6.toInt(), 0xFF26C6DA.toInt(), 0xFF26A69A.toInt(),

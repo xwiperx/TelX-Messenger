@@ -68,8 +68,10 @@ $tables = [
 
 "chats" => "CREATE TABLE IF NOT EXISTS chats (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  type ENUM('private','saved','group') NOT NULL DEFAULT 'private',
+  type ENUM('private','saved','group','channel') NOT NULL DEFAULT 'private',
   title VARCHAR(128) NULL,
+  username VARCHAR(32) NULL,
+  description VARCHAR(255) NULL,
   avatar VARCHAR(255) NULL,
   secret TINYINT(1) NOT NULL DEFAULT 0,
   pinned_message_id BIGINT UNSIGNED NULL,
@@ -181,6 +183,14 @@ $tables = [
   user_id BIGINT UNSIGNED NOT NULL UNIQUE,
   pubkey TEXT NOT NULL,
   updated_at DATETIME NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+"backups" => "CREATE TABLE IF NOT EXISTS backups (
+  user_id BIGINT UNSIGNED PRIMARY KEY,
+  data MEDIUMTEXT NOT NULL,
+  size INT UNSIGNED NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 ];

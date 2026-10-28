@@ -13,7 +13,12 @@ import com.telx.app.R
 import com.telx.app.data.Message
 import com.telx.app.ui.common.Helpers
 
-/** Renders messages in Telegram style: blue bubbles for me, white for peers. */
+/**
+ * Telegram-style message list:
+ *  - date separator rows (Today / Yesterday / date pill)
+ *  - sender name above other people's messages in groups/channels
+ *  - clock / single tick / double tick status per message
+ */
 class MessageAdapter(
     private val items: List<Message>
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
@@ -22,20 +27,46 @@ class MessageAdapter(
     var onMessageLongClick: ((Message) -> Unit)? = null
     var onImageClick: ((Message) -> Unit)? = null
     var onRetryClick: ((Message) -> Unit)? = null
+    var onReactClick: ((Message, String?) -> Unit)? = null
+
+    /** show sender names above other people's messages (group / channel) */
+    @Volatile var showSenderNames: Boolean = false
+
+    /** peer's last-read message id (✓✓ read) */
+    @Volatile var peerReadId: Int = 0
+
+    /** peer's last-delivered message id (✓✓ delivered, gray) */
+    @Volatile var peerDeliveredId: Int = 0
 
     companion object {
         const val TYPE_MINE = 0
         const val TYPE_THEIR = 1
         const val TYPE_SYSTEM = 2
+        const val TYPE_DATE = 3
         private var player: MediaPlayer? = null
         private var playingId = -1
     }
 
-    /** peer's last-read message id, set/updated by ChatActivity */
-    @Volatile var peerReadId: Int = 0
+    // row mapping: row -> message index, -1 = date header
+    private var rowMap: IntArray = IntArray(0)
+
+    private fun rebuildMap(): IntArray {
+        val out = ArrayList<Int>(items.size + 8)
+        var prevTs = -1L
+        for (i in items.indices) {
+            val m = items[i]
+            if (Helpers.differentDay(prevTs, m.ts) && m.type != "system") { out.add(-1); prevTs = m.ts }
+            else if (m.type != "system" && prevTs < 0) prevTs = m.ts
+            out.add(i)
+        }
+        return out.toIntArray().also { rowMap = it }
+    }
 
     override fun getItemViewType(position: Int): Int {
-        val m = items[position]
+        val map = rebuildMap()
+        val mi = if (position < map.size) map[position] else 0
+        if (mi < 0) return TYPE_DATE
+        val m = items[mi]
         return when {
             m.type == "system" -> TYPE_SYSTEM
             m.isMine -> TYPE_MINE
@@ -47,22 +78,42 @@ class MessageAdapter(
         val inf = LayoutInflater.from(parent.context)
         return when (viewType) {
             TYPE_SYSTEM -> SystemVH(inf.inflate(R.layout.item_msg_system, parent, false))
+            TYPE_DATE -> DateVH(inf.inflate(R.layout.item_date_header, parent, false))
             TYPE_MINE -> BubbleVH(inf.inflate(R.layout.item_msg_mine, parent, false), this)
             else -> BubbleVH(inf.inflate(R.layout.item_msg_their, parent, false), this)
         }
     }
 
-    override fun getItemCount() = items.size
+    override fun getItemCount(): Int = rebuildMap().size
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-        val m = items[position]
-        if (holder is SystemVH) {
-            holder.text.text = m.text
+        val map = rebuildMap()
+        val mi = if (position < map.size) map[position] else 0
+        if (mi < 0) {
+            (holder as DateVH).text.text = Helpers.dateSeparator(items[if (position + 1 < map.size) map[position + 1] else 0].ts)
             return
         }
-        holder as BubbleVH
-        holder.bind(m)
+        val m = items[mi]
+        if (holder is SystemVH) { holder.text.text = m.text; return }
+        (holder as BubbleVH).bind(m)
     }
+
+    // ---- helpers for ChatActivity (row positions differ from message indices) ----
+
+    fun rowOfMessage(id: Int): Int {
+        val map = rebuildMap()
+        for (r in map.indices) if (map[r] >= 0 && items[map[r]].id == id) return r
+        return -1
+    }
+
+    fun notifyMessageChanged(id: Int) {
+        val r = rowOfMessage(id)
+        if (r >= 0) notifyItemChanged(r) else notifyDataSetChanged()
+    }
+
+    fun notifyAllChanged() = notifyDataSetChanged()
+
+    fun lastRow(): Int = itemCount - 1
 
     fun stopPlayback() {
         try { player?.release() } catch (_: Exception) {}
@@ -70,11 +121,16 @@ class MessageAdapter(
         playingId = -1
     }
 
+    class DateVH(v: View) : RecyclerView.ViewHolder(v) {
+        val text: TextView = v.findViewById(R.id.date_text)
+    }
+
     class SystemVH(v: View) : RecyclerView.ViewHolder(v) {
         val text: TextView = v.findViewById(R.id.msg_system_text)
     }
 
     class BubbleVH(v: View, private val adapter: MessageAdapter) : RecyclerView.ViewHolder(v) {
+        private val senderName: TextView? = try { v.findViewById(R.id.msg_sender_name) } catch (_: Exception) { null }
         private val replyBlock: View = v.findViewById(R.id.msg_reply_block)
         private val replyName: TextView = v.findViewById(R.id.msg_reply_name)
         private val replyText: TextView = v.findViewById(R.id.msg_reply_text)
@@ -100,7 +156,17 @@ class MessageAdapter(
 
         fun bind(m: Message) {
             val ctx = itemView.context
-            val maxW = (ctx.resources.displayMetrics.widthPixels * 0.68f).toInt()
+            val maxW = (ctx.resources.displayMetrics.widthPixels * 0.72f).toInt()
+
+            // sender name (groups / channels)
+            if (senderName != null) {
+                val show = adapter.showSenderNames && !m.isMine && m.type != "system" && m.senderName.isNotEmpty()
+                senderName.visibility = if (show) View.VISIBLE else View.GONE
+                if (show) {
+                    senderName.text = m.senderName
+                    senderName.setTextColor(Helpers.colorFor(m.senderId))
+                }
+            }
 
             // forward header
             fwd.visibility = if (m.fwdFrom != null) View.VISIBLE else View.GONE
@@ -186,7 +252,13 @@ class MessageAdapter(
                     else -> {
                         status.visibility = View.GONE
                         ticks.visibility = View.VISIBLE
-                        ticks.setImageResource(if (m.id > 0 && m.id <= adapter.peerReadId) R.drawable.ic_read else R.drawable.ic_check_single)
+                        ticks.setImageResource(when {
+                            m.id > 0 && m.id <= adapter.peerReadId -> R.drawable.ic_read
+                            m.id > 0 && m.id <= adapter.peerDeliveredId -> R.drawable.ic_read
+                            else -> R.drawable.ic_check_single
+                        })
+                        ticks.setColorFilter(
+                            if (m.id > 0 && m.id <= adapter.peerReadId) 0xFF3390EC.toInt() else 0xFF8A8A8E.toInt())
                     }
                 }
             } else {
@@ -202,6 +274,7 @@ class MessageAdapter(
                     val chip = LayoutInflater.from(ctx).inflate(R.layout.item_reaction_chip, reactions, false) as TextView
                     chip.text = "${r.emoji} ${r.count}"
                     chip.setBackgroundResource(if (r.mine) R.drawable.chip_reaction_mine else R.drawable.chip_reaction)
+                    chip.setOnClickListener { adapter.onReactClick?.invoke(m, if (r.mine) null else r.emoji) }
                     reactions.addView(chip)
                 }
             } else reactions.visibility = View.GONE

@@ -5,11 +5,20 @@ require __DIR__ . '/../config.php';
 
 $action = p('action') ?? '';
 
-function chat_public(array $chat, array $my_membership, int $viewer, ?array $peer_override = null): array {
+function valid_chat_username(string $u): bool { return (bool)preg_match('/^[a-zA-Z][a-zA-Z0-9_]{3,31}$/', $u); }
+function chat_username_taken(string $u): bool {
+    $st = db()->prepare('SELECT id FROM chats WHERE LOWER(username) = LOWER(?)');
+    $st->execute([$u]);
+    return (bool)$st->fetch();
+}
+
+function chat_public(array $chat, array $my_membership, int $viewer, ?array $peer_override = null, bool $typing = false): array {
     $cid = (int)$chat['id'];
     $a = [
         'id' => $cid, 'type' => $chat['type'],
         'title' => $chat['title'], 'secret' => (int)$chat['secret'] === 1,
+        'username' => $chat['username'] ?? null,
+        'description' => $chat['description'] ?? null,
         'avatar' => $chat['avatar'] ? absolute_url($chat['avatar']) : null,
         'unread' => (int)$my_membership['unread_count'],
         'muted' => (int)$my_membership['muted'] === 1,
@@ -35,19 +44,25 @@ function chat_public(array $chat, array $my_membership, int $viewer, ?array $pee
     $a['members_count'] = (int)$st->fetch()['c'];
     if ($chat['type'] === 'private') {
         $a['peer'] = $peer_override ? user_public($peer_override) : peer_of_private($cid, $viewer);
-        // peer read progress for ✓✓ in chat list
+        // peer read/delivery progress for ✓/✓✓ in chat list
         $peerRow = peer_of_private($cid, $viewer);
         if ($peerRow) {
             $pm = my_membership($cid, (int)$peerRow['uid']);
-            if ($pm) $a['peer_last_read'] = (int)$pm['last_read_message_id'];
+            if ($pm) {
+                $a['peer_last_read'] = (int)$pm['last_read_message_id'];
+                $a['peer_last_delivered'] = (int)$pm['last_delivered_message_id'];
+            }
         }
-    } else if ($chat['type'] === 'group') {
+    } else if ($chat['type'] === 'group' || $chat['type'] === 'channel') {
         // read = minimum of all other members' last_read ids
         $st = db()->prepare('SELECT MIN(last_read_message_id) m FROM chat_members WHERE chat_id = ? AND user_id <> ?');
         $st->execute([$cid, $viewer]);
         $a['peer_last_read'] = (int)$st->fetch()['m'];
     }
     if (!isset($a['peer_last_read'])) $a['peer_last_read'] = 0;
+    if (!isset($a['peer_last_delivered'])) $a['peer_last_delivered'] = 0;
+    if ($chat['type'] === 'channel') $a['my_role'] = (string)$my_membership['role'];
+    $a['typing'] = $typing;
     return $a;
 }
 
@@ -57,19 +72,26 @@ case 'list': {
     $me = me();
     flush_due();
     $includeArchived = pint('include_archived') === 1;
-    $st = db()->prepare('SELECT c.*, m.unread_count, m.muted, m.pinned, m.archived, m.draft, m.last_read_message_id
+    $st = db()->prepare('SELECT c.*, m.unread_count, m.muted, m.pinned, m.archived, m.draft, m.role, m.last_read_message_id
                          FROM chat_members m JOIN chats c ON c.id = m.chat_id
                          WHERE m.user_id = ?' . ($includeArchived ? '' : ' AND m.archived = 0') . '
                          ORDER BY m.pinned DESC, COALESCE(c.last_message_at, c.created_at) DESC
                          LIMIT 200');
     $st->execute([$me['uid']]);
     $rows = $st->fetchAll();
+    // one batched query: which of my chats currently have someone typing
+    $typingMap = [];
+    $tt = db()->prepare("SELECT m.chat_id FROM chat_members m
+                          JOIN chat_members t ON t.chat_id = m.chat_id AND t.user_id <> m.user_id
+                          WHERE m.user_id = ? AND t.typing_at >= UTC_TIMESTAMP() - INTERVAL 5 SECOND");
+    $tt->execute([$me['uid']]);
+    foreach ($tt->fetchAll() as $r) $typingMap[(int)$r['chat_id']] = true;
     $out = [];
     foreach ($rows as $r) {
         $chat = chat_of((int)$r['id']);
         $peer = $chat['type'] === 'private' ? peer_of_private((int)$r['id'], (int)$me['uid']) : null;
         if ($chat['type'] === 'private' && !$peer) continue;          // ghost private chat
-        $cp = chat_public($r, $r, (int)$me['uid'], $peer);
+        $cp = chat_public($r, $r, (int)$me['uid'], $peer, !empty($typingMap[(int)$r['id']]));
         if ($peer) $cp['peer'] = user_public($peer);
         $out[] = $cp;
     }
@@ -155,6 +177,160 @@ case 'create_group': {
                    VALUES (?,?,?,?,?,UTC_TIMESTAMP())")->execute([$cid, null, '', 'system', $systemText]);
     emit([$me['uid'], ...$memberIds], 'chat_created', ['chat_id' => $cid], $cid, (int)$me['uid']);
     ok(['chat_id' => $cid]);
+}
+
+case 'create_channel': {
+    $me = me();
+    $title = trim(p('title') ?? '');
+    if (mb_strlen($title) < 1 || mb_strlen($title) > 128) fail('invalid', 'Channel title 1-128 chars');
+    $username = trim(p('username') ?? '');
+    if ($username !== '') {
+        if (!valid_chat_username($username)) fail('invalid', 'Username: 4-32 chars, letters/digits/underscore, must start with a letter');
+        if (chat_username_taken($username)) fail('taken', 'This link is already taken');
+    }
+    $desc = trim(p('description') ?? '');
+    if (mb_strlen($desc) > 255) fail('invalid', 'Description max 255 chars');
+    $memberIds = array_values(array_unique(array_diff(array_map('intval', parr('member_ids')), [(int)$me['uid']])));
+    foreach ($memberIds as $mid) { $u = user_by_id($mid); if (!$u) fail('not_found', "User $mid not found"); }
+    db()->prepare("INSERT INTO chats (type, title, username, description, created_at, last_message_at)
+                   VALUES ('channel', ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())")->execute([$title, $username ?: null, $desc ?: null]);
+    $cid = (int)db()->lastInsertId();
+    $ins = db()->prepare("INSERT INTO chat_members (chat_id, user_id, role, joined_at) VALUES (?,?,?,UTC_TIMESTAMP())");
+    $ins->execute([$cid, $me['uid'], 'admin']);
+    foreach ($memberIds as $mid) $ins->execute([$cid, $mid, 'member']);
+    db()->prepare("INSERT INTO messages (chat_id, sender_id, sender_name, type, text, created_at)
+                   VALUES (?,NULL,'','system',?,UTC_TIMESTAMP())")->execute([$cid, 'Channel created']);
+    emit([$me['uid'], ...$memberIds], 'chat_created', ['chat_id' => $cid], $cid, (int)$me['uid']);
+    ok(['chat_id' => $cid]);
+}
+
+case 'join_channel': {
+    $me = me();
+    $cid = pint('chat_id');
+    $username = trim(p('username') ?? '');
+    if ($cid > 0) {
+        $chat = chat_of($cid);
+        if (!$chat || $chat['type'] !== 'channel') fail('not_found', 'Channel not found');
+    } elseif ($username !== '') {
+        $st = db()->prepare("SELECT * FROM chats WHERE type = 'channel' AND LOWER(username) = LOWER(?) LIMIT 1");
+        $st->execute([$username]);
+        $chat = $st->fetch();
+        if (!$chat) fail('not_found', 'Channel not found');
+        $cid = (int)$chat['id'];
+    } else fail('invalid', 'chat_id or username required');
+    if (my_membership($cid, (int)$me['uid'])) ok(['chat_id' => $cid, 'joined' => false]);
+    db()->prepare("INSERT INTO chat_members (chat_id, user_id, role, joined_at) VALUES (?,?,'member',UTC_TIMESTAMP())")->execute([$cid, $me['uid']]);
+    emit(chat_member_ids($cid, (int)$me['uid']), 'chat_updated', ['chat_id' => $cid], $cid, (int)$me['uid']);
+    emit($me['uid'], 'chat_created', ['chat_id' => $cid], $cid);
+    ok(['chat_id' => $cid, 'joined' => true]);
+}
+
+case 'leave_channel': {
+    $me = me();
+    $cid = pint('chat_id');
+    $m = require_member($cid);
+    $chat = chat_of($cid);
+    if (!$chat || $chat['type'] !== 'channel') fail('invalid', 'Not a channel');
+    db()->prepare('DELETE FROM chat_members WHERE chat_id = ? AND user_id = ?')->execute([$cid, $me['uid']]);
+    // hand ownership to another admin/subscriber if the creator leaves
+    $st = db()->prepare('SELECT user_id FROM chat_members WHERE chat_id = ? ORDER BY id LIMIT 1');
+    $st->execute([$cid]);
+    $r = $st->fetch();
+    if ($r) db()->prepare("UPDATE chat_members SET role = 'admin' WHERE chat_id = ? AND user_id = ?")->execute([$cid, (int)$r['user_id']]);
+    else db()->prepare('DELETE FROM chats WHERE id = ?')->execute([$cid]);
+    emit($me['uid'], 'chat_deleted', ['chat_id' => $cid], $cid);
+    ok(['left' => true]);
+}
+
+case 'update_channel': {
+    $me = me();
+    $cid = pint('chat_id');
+    $m = require_member($cid);
+    if ($m['role'] !== 'admin') fail('forbidden', 'Only admins can edit the channel');
+    $chat = chat_of($cid);
+    if (!$chat || $chat['type'] !== 'channel') fail('invalid', 'Not a channel');
+    $title = trim(p('title') ?? '');
+    if ($title !== '') {
+        if (mb_strlen($title) < 1 || mb_strlen($title) > 128) fail('invalid', 'Title 1-128 chars');
+        db()->prepare('UPDATE chats SET title = ? WHERE id = ?')->execute([$title, $cid]);
+    }
+    $desc = p('description');
+    if ($desc !== null) {
+        if (mb_strlen($desc) > 255) fail('invalid', 'Description max 255 chars');
+        db()->prepare('UPDATE chats SET description = ? WHERE id = ?')->execute([$desc === '' ? null : $desc, $cid]);
+    }
+    $username = trim(p('username') ?? '');
+    if ($username !== '') {
+        if (!valid_chat_username($username)) fail('invalid', 'Bad username format');
+        $own = strtolower((string)$chat['username']) === strtolower($username);
+        if (!$own && chat_username_taken($username)) fail('taken', 'This link is already taken');
+        db()->prepare('UPDATE chats SET username = ? WHERE id = ?')->execute([$username, $cid]);
+    }
+    $avatarRel = p('avatar_rel');
+    if ($avatarRel !== null)
+        db()->prepare('UPDATE chats SET avatar = ? WHERE id = ?')->execute([$avatarRel === '' ? null : $avatarRel, $cid]);
+    emit(chat_member_ids($cid, (int)$me['uid']), 'chat_updated', ['chat_id' => $cid], $cid, (int)$me['uid']);
+    ok(['chat' => chat_public(chat_of($cid), $m, (int)$me['uid'])]);
+}
+
+case 'channel_info': {
+    $me = me();
+    $cid = pint('chat_id');
+    $m = require_member($cid);
+    $chat = chat_of($cid);
+    if (!$chat || $chat['type'] !== 'channel') fail('invalid', 'Not a channel');
+    $resp = ['chat' => chat_public($chat, $m, (int)$me['uid'])];
+    $st = db()->prepare('SELECT u.*, m.role, u.id AS uid FROM chat_members m JOIN users u ON u.id = m.user_id
+                         WHERE m.chat_id = ? ORDER BY m.role = "admin" DESC, u.first_name LIMIT 200');
+    $st->execute([$cid]);
+    $subs = [];
+    foreach ($st->fetchAll() as $u) {
+        $pub = user_public($u);
+        $pub['role'] = $u['role'];
+        $subs[] = $pub;
+    }
+    $resp['subscribers'] = $m['role'] === 'admin' ? $subs : [];
+    ok($resp);
+}
+
+case 'set_channel_admin': {
+    $me = me();
+    $cid = pint('chat_id');
+    $uid2 = pint('user_id');
+    $m = require_member($cid);
+    if ($m['role'] !== 'admin') fail('forbidden', 'Only admins can change roles');
+    $chat = chat_of($cid);
+    if (!$chat || $chat['type'] !== 'channel') fail('invalid', 'Not a channel');
+    $target = my_membership($cid, $uid2);
+    if (!$target) fail('not_found', 'User is not a subscriber');
+    $role = pint('admin') === 1 ? 'admin' : 'member';
+    db()->prepare('UPDATE chat_members SET role = ? WHERE chat_id = ? AND user_id = ?')->execute([$role, $cid, $uid2]);
+    emit(chat_member_ids($cid, (int)$me['uid']), 'chat_updated', ['chat_id' => $cid], $cid, (int)$me['uid']);
+    ok(['user_id' => $uid2, 'role' => $role]);
+}
+
+case 'search_public': {
+    $me = me();
+    $q = trim(p('q') ?? '');
+    if ($q === '') ok(['channels' => []]);
+    $like = "%$q%";
+    $st = db()->prepare("SELECT c.*, ? AS viewer FROM chats c
+                          WHERE c.type = 'channel' AND (LOWER(c.username) LIKE LOWER(?) OR c.title LIKE ?)
+                          ORDER BY (SELECT COUNT(*) FROM chat_members cm WHERE cm.chat_id = c.id) DESC
+                          LIMIT 20");
+    $st->execute([$me['uid'], $like, $like]);
+    $channels = [];
+    foreach ($st->fetchAll() as $c) {
+        $joined = my_membership((int)$c['id'], (int)$me['uid']) ? true : false;
+        $channels[] = [
+            'id' => (int)$c['id'], 'title' => $c['title'], 'username' => $c['username'],
+            'description' => $c['description'],
+            'avatar' => $c['avatar'] ? absolute_url($c['avatar']) : null,
+            'members_count' => (int)db()->query('SELECT COUNT(*) c FROM chat_members WHERE chat_id = ' . (int)$c['id'])->fetch()['c'],
+            'joined' => $joined,
+        ];
+    }
+    ok(['channels' => $channels]);
 }
 
 case 'group_info': {

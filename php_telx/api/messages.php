@@ -45,6 +45,9 @@ case 'send': {
     $membership = require_member($cid);
     $chat = chat_of($cid);
     if (!$chat) fail('not_found', 'Chat not found');
+    // channels are broadcast-only: admins post, subscribers read
+    if ($chat['type'] === 'channel' && (string)$membership['role'] !== 'admin')
+        fail('forbidden', 'Only channel admins can post here');
     $type = p('type') ?? 'text';
     if (!in_array($type, ['text','photo','file','voice','video','sticker','gif'], true)) fail('invalid', 'Bad message type');
     $text = (string)(p('text') ?? '');
@@ -129,7 +132,7 @@ case 'delete': {
     $membership = my_membership((int)$m['chat_id'], (int)$me['uid']);
     if (!$membership) fail('forbidden', 'Not your chat');
     $isOwn = (int)($m['sender_id'] ?? 0) === (int)$me['uid'];
-    $isAdmin = $chat && $chat['type'] === 'group' && $membership['role'] === 'admin';
+    $isAdmin = $chat && ($chat['type'] === 'group' || $chat['type'] === 'channel') && $membership['role'] === 'admin';
     if (!$isOwn && !$isAdmin) fail('forbidden', 'Not your message');
     db()->prepare('UPDATE messages SET deleted = 1 WHERE id = ?')->execute([$mid]);
     db()->prepare('DELETE FROM reactions WHERE message_id = ?')->execute([$mid]);

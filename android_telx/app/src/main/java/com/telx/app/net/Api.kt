@@ -145,6 +145,44 @@ object Api {
         call("chats", "add_members") { put("chat_id", chatId); put("user_ids", JSONArray().also { a -> ids.forEach { a.put(it) } }) }
     fun removeMember(chatId: Int, userId: Int) = call("chats", "remove_member") { put("chat_id", chatId); put("user_id", userId) }
 
+    // ---------------- channels ----------------
+    fun createChannel(title: String, description: String, username: String, memberIds: List<Int>): JSONObject =
+        call("chats", "create_channel") {
+            put("title", title)
+            if (description.isNotEmpty()) put("description", description)
+            if (username.isNotEmpty()) put("username", username)
+            put("member_ids", JSONArray().also { a -> memberIds.forEach { a.put(it) } })
+        }
+
+    fun joinChannel(chatId: Int = 0, username: String = ""): JSONObject =
+        call("chats", "join_channel") {
+            if (chatId > 0) put("chat_id", chatId)
+            if (username.isNotEmpty()) put("username", username)
+        }
+
+    fun leaveChannel(chatId: Int) = call("chats", "leave_channel") { put("chat_id", chatId) }
+
+    fun updateChannel(chatId: Int, title: String? = null, description: String? = null,
+                      username: String? = null, avatarRel: String? = null): JSONObject =
+        call("chats", "update_channel") {
+            put("chat_id", chatId)
+            if (!title.isNullOrEmpty()) put("title", title)
+            if (description != null) put("description", description)
+            if (!username.isNullOrEmpty()) put("username", username)
+            if (avatarRel != null) put("avatar_rel", avatarRel)
+        }
+
+    fun channelInfo(chatId: Int): JSONObject = call("chats", "channel_info") { put("chat_id", chatId) }
+    fun setChannelAdmin(chatId: Int, userId: Int, admin: Boolean) =
+        call("chats", "set_channel_admin") { put("chat_id", chatId); put("user_id", userId); put("admin", if (admin) 1 else 0) }
+    fun searchPublic(q: String): JSONArray = call("chats", "search_public") { put("q", q) }.getJSONArray("channels")
+
+    // ---------------- encrypted backup ----------------
+    fun backupMeta(): JSONObject = call("backup", "meta")
+    fun backupSave(dataB64: String): JSONObject = call("backup", "save") { put("data", dataB64) }
+    fun backupGet(): JSONObject = call("backup", "get")
+    fun backupDelete() = call("backup", "delete")
+
     // ---------------- messages ----------------
     fun messages(chatId: Int, beforeId: Int = 0, limit: Int = 40): JSONObject =
         call("messages", "list") { put("chat_id", chatId); put("before_id", beforeId); put("limit", limit) }
@@ -223,9 +261,9 @@ object Api {
     fun storyMine(): JSONArray = call("stories", "mine").getJSONArray("stories")
     fun storyDelete(storyId: Int) = call("stories", "delete") { put("story_id", storyId) }
 
-    // ---------------- events (long poll) ----------------
+    // ---------------- events (client-paced poll; wait=0 → server replies instantly) ----------------
     fun events(sinceId: Int): JSONObject {
-        val body = JSONObject().put("action", "poll").put("since_id", sinceId)
+        val body = JSONObject().put("action", "poll").put("since_id", sinceId).put("wait", 0)
         return request(API + "events.php", body, POLL_READ_TIMEOUT).j
     }
 

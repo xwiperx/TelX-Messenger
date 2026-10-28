@@ -4,14 +4,28 @@ import android.util.Log
 import com.telx.app.data.Event
 import com.telx.app.data.Prefs
 
-/** Long-polling event bus. One background thread feeds all registered listeners. */
+/**
+ * Event bus with client-paced polling.
+ *
+ * The server supports wait=0 (instant return) so we control cadence here:
+ *  - app in foreground: poll every FOREGROUND_MS for Telegram-like latency
+ *  - app in background (PollService only): poll every BACKGROUND_MS to stay light
+ * A single daemon thread feeds all registered listeners.
+ */
 object Events {
 
     interface Listener { fun onEvent(e: Event) }
 
+    private const val FOREGROUND_MS = 2000L
+    private const val BACKGROUND_MS = 25000L
+    private const val MAX_BACKOFF = 10000L
+
     private val listeners = java.util.concurrent.CopyOnWriteArrayList<Listener>()
     private var thread: Thread? = null
     private val lock = Any()
+
+    @Volatile private var running = false
+    @Volatile var foreground = true
 
     fun addListener(l: Listener) { listeners.add(l) }
     fun removeListener(l: Listener) { listeners.remove(l) }
@@ -24,8 +38,6 @@ object Events {
             thread = Thread(loop, "telx-poller").apply { isDaemon = true; start() }
         }
     }
-
-    @Volatile private var running = false
 
     fun restart() {
         synchronized(lock) {
@@ -43,7 +55,8 @@ object Events {
         var backoff = 2000L
         while (running) {
             val token = Prefs.token
-            if (token.isEmpty()) { sleep(2000); continue }
+            if (token.isEmpty()) { sleep(3000); continue }
+            val idle = FOREGROUND_MS.takeIf { foreground } ?: BACKGROUND_MS
             try {
                 val j = Api.events(Prefs.sinceId)
                 backoff = 2000L
@@ -67,11 +80,11 @@ object Events {
                         try { l.onEvent(synthetic) } catch (_: Exception) {}
                     }
                 }
-                sleep(150)
+                sleep(idle)
             } catch (e: Exception) {
                 if (!running) break
                 sleep(backoff)
-                if (backoff < 15000) backoff = (backoff * 3 / 2).coerceAtMost(15000L)
+                if (backoff < MAX_BACKOFF) backoff = (backoff * 3 / 2).coerceAtMost(MAX_BACKOFF)
             }
         }
     }

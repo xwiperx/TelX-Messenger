@@ -64,10 +64,26 @@ class ChatsFragment : Fragment(), Events.Listener {
         swipe.setColorSchemeColors(0xFF3390EC.toInt())
         swipe.setOnRefreshListener { load() }
 
-        view.findViewById<FloatingActionButton>(R.id.fab_new).setOnClickListener {
-            startActivity(Intent(requireContext(), SearchActivity::class.java))
-        }
+        view.findViewById<FloatingActionButton>(R.id.fab_new).setOnClickListener { showCreateSheet() }
         load()
+    }
+
+    private fun showCreateSheet() {
+        val options = arrayOf("New Group", "New Channel", "New Message", "New Secret Chat")
+        AlertDialog.Builder(requireContext())
+            .setTitle("Create")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> startActivity(Intent(requireContext(),
+                        com.telx.app.ui.contacts.PickUsersActivity::class.java))
+                    1 -> startActivity(Intent(requireContext(),
+                        com.telx.app.ui.chats.CreateChannelActivity::class.java))
+                    2 -> startActivity(Intent(requireContext(), SearchActivity::class.java))
+                    3 -> startActivity(Intent(requireContext(),
+                        com.telx.app.ui.contacts.PickSecretActivity::class.java))
+                }
+            }
+            .show()
     }
 
     private fun openChat(c: Chat) {
@@ -122,6 +138,7 @@ class ChatsFragment : Fragment(), Events.Listener {
         items.add(if (c.archived) "Unarchive" else "Archive")
         items.add("Clear history")
         if (c.type == "group") items.add("Leave group")
+        if (c.isChannel) items.add("Leave channel")
         AlertDialog.Builder(requireContext())
             .setTitle(c.displayName)
             .setItems(items.toTypedArray()) { _, which ->
@@ -137,6 +154,7 @@ class ChatsFragment : Fragment(), Events.Listener {
                             "Unarchive" -> withContext(Dispatchers.IO) { Api.setArchived(c.id, false) }
                             "Clear history" -> withContext(Dispatchers.IO) { Api.clearHistory(c.id) }
                             "Leave group" -> withContext(Dispatchers.IO) { Api.leaveGroup(c.id) }
+                            "Leave channel" -> withContext(Dispatchers.IO) { Api.leaveChannel(c.id) }
                         }
                         load()
                     } catch (e: Exception) { Helpers.toast(context, "Action failed") }

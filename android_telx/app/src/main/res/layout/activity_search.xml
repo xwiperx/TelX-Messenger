@@ -9,7 +9,7 @@
         style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginStart="16dp" android:layout_marginEnd="16dp" android:layout_marginTop="8dp"
-        android:hint="Search users and messages"
+        android:hint="Search people, channels and messages"
         app:startIconDrawable="@drawable/ic_search">
         <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_search"
             android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -17,6 +17,12 @@
     </com.google.android.material.textfield.TextInputLayout>
     <ScrollView android:layout_width="match_parent" android:layout_height="match_parent">
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+            <TextView android:id="@+id/search_channels_title" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textSize="13sp" android:textStyle="bold" android:textColor="@color/text_secondary"
+                android:padding="14dp" android:visibility="gone" />
+            <androidx.recyclerview.widget.RecyclerView android:id="@+id/search_channels"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false" tools:listitem="@layout/item_channel_search" />
             <TextView android:id="@+id/search_users_title" android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:textSize="13sp" android:textStyle="bold" android:textColor="@color/text_secondary"
                 android:padding="14dp" android:visibility="gone" />

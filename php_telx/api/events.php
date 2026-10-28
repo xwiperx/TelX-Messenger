@@ -1,5 +1,5 @@
 <?php
-/* TelX API — events.php : long-polling gateway (instant updates) */
+/* TelX API — events.php : event gateway (supports short-hold long-poll and instant poll) */
 define('TELX_API', 1);
 require __DIR__ . '/../config.php';
 
@@ -9,15 +9,17 @@ flush_due();
 
 $uid = me_id();
 $since = max(0, (int)(p('since_id') ?? '0'));
+/* wait=0 → instant return (client-driven cadence, friendly to shared hosting).
+   wait>0 → hold the request up to N seconds waiting for events (max 22). */
+$wait = min(22, max(0, (int)(p('wait') ?? '0')));
 
 // trim old events for this user (keep table small)
 if (random_int(1, 20) === 1) {
     db()->prepare('DELETE FROM events WHERE user_id = ? AND created_at < UTC_TIMESTAMP() - INTERVAL 2 DAY')->execute([$uid]);
 }
 
-$deadline = time() + LONGPOLL_TIMEOUT;
+$deadline = time() + $wait;
 $events = [];
-$lastDelivered = 0;
 
 while (true) {
     $st = db()->prepare('SELECT * FROM events WHERE user_id = ? AND id > ? ORDER BY id LIMIT 60');
@@ -40,7 +42,8 @@ while (true) {
         break;
     }
     if (time() >= $deadline) break;
-    // keep presence fresh while polling
+    if ($wait <= 0) break;               // instant mode: single check
+    // keep presence fresh while holding
     touch_presence($uid);
     flush_due();
     usleep(700000); // 0.7s

@@ -63,6 +63,20 @@
             android:text="Chat Wallpaper" android:textSize="16sp" android:textColor="@color/text_primary" />
     </LinearLayout>
     <LinearLayout
+        android:id="@+id/row_backup"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_key" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="Cloud Backup (encrypted)" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <LinearLayout
         android:id="@+id/row_2fa"
         android:layout_width="match_parent"
         android:layout_height="52dp"

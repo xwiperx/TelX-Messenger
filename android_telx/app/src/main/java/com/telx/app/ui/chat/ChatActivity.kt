@@ -71,12 +71,17 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
     private var infoJob: Job? = null
     private var typingSentAt = 0L
     private val handler = Handler(Looper.getMainLooper())
+    private var draftApplied = false
 
     private lateinit var recycler: RecyclerView
     private lateinit var toolbar: Toolbar
     private lateinit var titleView: TextView
     private lateinit var statusView: TextView
     private lateinit var avatar: AvatarView
+    private lateinit var inputRow: View
+    private lateinit var channelBar: View
+    private lateinit var channelMuteIcon: ImageView
+    private lateinit var channelMuteLabel: TextView
     private lateinit var input: EditText
     private lateinit var btnSend: FloatingActionButton
     private lateinit var btnAttach: ImageView
@@ -122,6 +127,10 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         statusView = findViewById(R.id.chat_status)
         avatar = findViewById(R.id.chat_avatar)
         recycler = findViewById(R.id.chat_recycler)
+        inputRow = findViewById(R.id.input_row)
+        channelBar = findViewById(R.id.channel_bar)
+        channelMuteIcon = findViewById(R.id.channel_mute_icon)
+        channelMuteLabel = findViewById(R.id.channel_mute_label)
         input = findViewById(R.id.chat_input)
         btnSend = findViewById(R.id.btn_send)
         btnAttach = findViewById(R.id.btn_attach)
@@ -154,6 +163,7 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         adapter.onMessageLongClick = { showMessageActions(it) }
         adapter.onImageClick = { showImage(it) }
         adapter.onRetryClick = { retryFailed(it) }
+        adapter.onReactClick = { m, emoji -> react(m, emoji) }
         adapter.onMessageClick = { msg ->
             if (selecting) toggleSelect(msg)
         }
@@ -242,11 +252,21 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                     if (peer != null && peer.privacyLock) {
                         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
                     }
+                    // restore draft once per chat opening (Telegram behaviour)
+                    if (!draftApplied) {
+                        draftApplied = true
+                        val d = c.draft
+                        if (!d.isNullOrEmpty() && input.text?.isEmpty() != false) {
+                            input.setText(d)
+                            input.setSelection(d.length)
+                        }
+                    }
                 }
                 val typing = j.optJSONArray("typing")
                 val isTyping = typing != null && typing.length() > 0
                 statusView.text = when {
                     isTyping -> "typing…"
+                    c.isChannel -> "${c.membersCount} subscribers"
                     c.type == "group" -> "${c.membersCount} members"
                     c.isSaved -> ""
                     else -> Helpers.lastSeenText(peer?.online == true, peer?.lastTs ?: 0)
@@ -260,13 +280,56 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                     pinnedBar.visibility = View.VISIBLE
                     pinnedText.text = "📌 " + (if (m.text.isNotEmpty()) m.text else "Media message")
                 } else pinnedBar.visibility = View.GONE
-                // update read watermark
+                // broadcast mode: only admins can post
+                if (c.isChannel && c.myRole != "admin") {
+                    inputRow.visibility = View.GONE
+                    channelBar.visibility = View.VISIBLE
+                    channelBar.setOnClickListener { toggleChannelMute() }
+                    renderChannelMute(c)
+                } else {
+                    inputRow.visibility = View.VISIBLE
+                    channelBar.visibility = View.GONE
+                }
+                // sender names in group chats / channels
+                adapter.showSenderNames = c.type == "group" || c.isChannel
+                // read/delivery watermarks
                 adapter.peerReadId = c.peerLastRead
-                handler.post { if (!selecting) adapter.notifyDataSetChanged() }
+                adapter.peerDeliveredId = maxOf(adapter.peerDeliveredId, c.peerLastDelivered)
+                handler.post { if (!selecting) adapter.notifyAllChanged() }
+                updateMenuForChat(c)
             } catch (e: Exception) {
                 if (!quiet) Helpers.toast(this@ChatActivity, "Couldn't load chat")
             }
         }
+    }
+
+    private fun renderChannelMute(c: Chat) {
+        if (c.muted) {
+            channelMuteIcon.setImageResource(R.drawable.ic_muted)
+            channelMuteLabel.text = "Unmute"
+        } else {
+            channelMuteIcon.setImageResource(R.drawable.ic_volume)
+            channelMuteLabel.text = "Mute"
+        }
+    }
+
+    private fun toggleChannelMute() {
+        val c = chat ?: return
+        ui.launch {
+            try {
+                withContext(Dispatchers.IO) { Api.setMute(chatId, !c.muted) }
+                loadInfo(quiet = true)
+                Helpers.toast(this@ChatActivity, if (!c.muted) "Channel muted" else "Channel unmuted")
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun updateMenuForChat(c: Chat) {
+        val m = toolbar.menu
+        m.findItem(R.id.chat_edit)?.isVisible = c.isChannel && c.myRole == "admin"
+        m.findItem(R.id.chat_subs)?.isVisible = c.isChannel
+        m.findItem(R.id.chat_leave)?.isVisible = c.isChannel
+        m.findItem(R.id.chat_clear)?.isVisible = !c.isChannel || c.myRole == "admin"
     }
 
     private fun loadMessages() {
@@ -276,8 +339,8 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                 val list = Message.parseArray(j.optJSONArray("messages"))
                 messages.clear()
                 messages.addAll(list)
-                adapter.notifyDataSetChanged()
-                recycler.post { recycler.scrollToPosition((messages.size - 1).coerceAtLeast(0)) }
+                adapter.notifyAllChanged()
+                recycler.post { recycler.scrollToPosition(adapter.lastRow().coerceAtLeast(0)) }
                 empty.visibility = if (messages.isEmpty()) View.VISIBLE else View.GONE
                 markReadUpTo()
             } catch (e: Exception) {
@@ -296,7 +359,7 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                 val older = Message.parseArray(j.optJSONArray("messages"))
                 if (older.isNotEmpty() && older.last().id < firstId) {
                     messages.addAll(0, older)
-                    adapter.notifyDataSetChanged()
+                    adapter.notifyAllChanged()
                     recycler.post { recycler.scrollToPosition(older.size) }
                     empty.visibility = View.GONE
                 }
@@ -316,6 +379,10 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         }
     }
 
+    private fun clearDraft() {
+        Api.tryCall("chats", "set_draft") { put("chat_id", chatId); put("draft", "") }
+    }
+
     // ---------- events ----------
 
     override fun onEvent(e: Event) {
@@ -326,18 +393,21 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                     val mj = e.data.optJSONObject("message") ?: return@post
                     val m = Message(mj)
                     val dupIdx = messages.indexOfFirst { it.id == m.id }
-                    if (dupIdx >= 0) { messages[dupIdx] = m }
-                    else {
-                        // drop our pending optimistic twin with same text
+                    if (dupIdx >= 0) {
+                        // server echo of our own message — refresh in place
+                        messages[dupIdx] = m
+                        adapter.notifyMessageChanged(m.id)
+                    } else {
+                        // drop our pending optimistic twin with same content
                         val pendIdx = messages.indexOfFirst {
                             it.id < 0 && it.state == Message.STATE_PENDING && it.type == m.type &&
                                     (it.text == m.text || (it.media == m.media && it.media != null))
                         }
                         if (pendIdx >= 0 && m.isMine) messages.removeAt(pendIdx)
                         messages.add(m)
+                        adapter.notifyAllChanged()
+                        recycler.post { recycler.scrollToPosition(adapter.lastRow()) }
                     }
-                    adapter.notifyItemInserted(messages.size - 1)
-                    recycler.post { recycler.scrollToPosition(messages.size - 1) }
                     empty.visibility = View.GONE
                     markReadUpTo()
                 }
@@ -345,12 +415,12 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                     val mj = e.data.optJSONObject("message") ?: return@post
                     val m = Message(mj)
                     val idx = messages.indexOfFirst { it.id == m.id }
-                    if (idx >= 0) { messages[idx] = m; adapter.notifyItemChanged(idx) }
+                    if (idx >= 0) { messages[idx] = m; adapter.notifyMessageChanged(m.id) }
                 }
                 "message_deleted" -> {
                     val mid = e.data.optInt("message_id")
                     val idx = messages.indexOfFirst { it.id == mid }
-                    if (idx >= 0) { messages.removeAt(idx); adapter.notifyItemRemoved(idx) }
+                    if (idx >= 0) { messages.removeAt(idx); adapter.notifyAllChanged() }
                     empty.visibility = if (messages.isEmpty()) View.VISIBLE else View.GONE
                 }
                 "message_reacted" -> {
@@ -359,7 +429,7 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                     if (idx >= 0) {
                         val rs = e.data.optJSONArray("reactions")
                         if (rs != null) messages[idx].reactions = com.telx.app.data.parseReactions(rs)
-                        adapter.notifyItemChanged(idx)
+                        adapter.notifyMessageChanged(mid)
                     }
                 }
                 "message_pinned" -> loadInfo(quiet = true)
@@ -367,10 +437,17 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                     val last = e.data.optInt("last_read_id")
                     if (last > adapter.peerReadId) {
                         adapter.peerReadId = last
-                        adapter.notifyDataSetChanged()
+                        adapter.notifyAllChanged()
                     }
                 }
-                "chat_cleared" -> { messages.clear(); adapter.notifyDataSetChanged(); empty.visibility = View.VISIBLE }
+                "message_delivered" -> {
+                    val last = e.data.optInt("last_delivered_id")
+                    if (last > adapter.peerDeliveredId) {
+                        adapter.peerDeliveredId = last
+                        adapter.notifyAllChanged()
+                    }
+                }
+                "chat_cleared" -> { messages.clear(); adapter.notifyAllChanged(); empty.visibility = View.VISIBLE }
             }
         }
     }
@@ -378,6 +455,8 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
     // ---------- sending ----------
 
     private fun maybeSendTyping() {
+        val c = chat
+        if (c != null && (c.isChannel || c.isSaved)) return
         val now = System.currentTimeMillis()
         if (now - typingSentAt > 3000) {
             typingSentAt = now
@@ -401,6 +480,7 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
             return
         }
         input.setText("")
+        clearDraft()
         val rt = replyTo?.id ?: 0
         replyTo = null
         clearReplyBar()
@@ -421,8 +501,8 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
             .put("ts", System.currentTimeMillis() / 1000))
         m.state = Message.STATE_PENDING
         messages.add(m)
-        adapter.notifyItemInserted(messages.size - 1)
-        recycler.post { recycler.scrollToPosition(messages.size - 1) }
+        adapter.notifyAllChanged()
+        recycler.post { recycler.scrollToPosition(adapter.lastRow()) }
         empty.visibility = View.GONE
 
         ui.launch {
@@ -434,14 +514,14 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                 val idx = messages.indexOfFirst { it.id == m.id }
                 if (idx >= 0) {
                     messages[idx] = real
-                    adapter.notifyItemChanged(idx)
+                    adapter.notifyMessageChanged(real.id)
                 }
-                adapter.peerReadId = maxOf(adapter.peerReadId, real.id)
+                adapter.peerDeliveredId = maxOf(adapter.peerDeliveredId, real.id)
             } catch (e: Exception) {
                 val idx = messages.indexOfFirst { it.id == m.id }
                 if (idx >= 0) {
                     messages[idx].state = Message.STATE_FAILED
-                    adapter.notifyItemChanged(idx)
+                    adapter.notifyMessageChanged(m.id)
                     Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Message not sent")
                 }
             }
@@ -452,7 +532,7 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         val idx = messages.indexOfFirst { it.id == m.id }
         if (idx < 0) return
         messages.removeAt(idx)
-        adapter.notifyItemRemoved(idx)
+        adapter.notifyAllChanged()
         sendOptimistic(m.type, m.text,
             m.media?.removePrefix(Api.BASE), m.thumb?.removePrefix(Api.BASE),
             m.mediaDuration, m.replyTo ?: 0)
@@ -601,7 +681,7 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
             items.add("Edit" to { showReplyFor(m, true) })
         if (m.id > 0) items.add("Pin" to { ui.launch { withContext(Dispatchers.IO) { Api.pin(chatId, m.id) } } })
         items.add("Select" to { startSelection() })
-        if (mine || chat?.type == "group")
+        if (mine || (chat?.type == "group") || (chat?.isChannel == true && chat?.myRole == "admin"))
             items.add("Delete" to { confirmDelete(listOf(m.id)) })
         v.findViewById<LinearLayout>(R.id.msg_action_list).let { container ->
             for ((label, action) in items) {
@@ -618,8 +698,9 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
     }
 
     private fun react(m: Message, emoji: String?) {
+        if (m.id < 0) return
         ui.launch {
-            try { withContext(Dispatchers.IO) { Api.react(m.id, emoji) }; loadInfo(quiet = true) }
+            try { withContext(Dispatchers.IO) { Api.react(m.id, emoji) } }
             catch (e: Exception) { Helpers.toast(this@ChatActivity, "Reaction failed") }
         }
     }
@@ -733,11 +814,12 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
 
     private fun openPeerProfile() {
         val c = chat ?: return
-        when (c.type) {
-            "private" -> c.peer?.let {
+        when {
+            c.type == "private" -> c.peer?.let {
                 startActivity(Intent(this, com.telx.app.ui.profile.UserProfileActivity::class.java).putExtra("user_id", it.id))
             }
-            "group" -> showGroupInfo()
+            c.type == "group" -> showGroupInfo()
+            c.isChannel -> showChannelInfo()
         }
     }
 
@@ -767,6 +849,82 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         }
     }
 
+    private fun showChannelInfo() {
+        ui.launch {
+            try {
+                val j = withContext(Dispatchers.IO) { Api.channelInfo(chatId) }
+                val c = Chat(j.getJSONObject("chat"))
+                val subs = com.telx.app.data.User.parseArray(j.optJSONArray("subscribers"))
+                val sb = StringBuilder()
+                sb.append("${c.membersCount} subscribers\n\n")
+                if (!c.description.isNullOrEmpty()) sb.append(c.description).append("\n\n")
+                if (!c.username.isNullOrEmpty()) sb.append("link: telx.ch/").append(c.username)
+                val builder = AlertDialog.Builder(this@ChatActivity)
+                    .setTitle(c.displayName)
+                    .setMessage(sb.toString())
+                    .setPositiveButton("Leave channel") { _, _ ->
+                        ui.launch {
+                            try { withContext(Dispatchers.IO) { Api.leaveChannel(chatId) }; finish() }
+                            catch (e: Exception) { Helpers.toast(this@ChatActivity, "Failed") }
+                        }
+                    }
+                    .setNegativeButton("Close", null)
+                if (subs.isNotEmpty()) builder.setNeutralButton("Manage admins") { _, _ -> manageChannelAdmins(subs) }
+                builder.show()
+            } catch (e: Exception) { Helpers.toast(this@ChatActivity, "Couldn't load channel") }
+        }
+    }
+
+    private fun manageChannelAdmins(subs: List<User>) {
+        val names = subs.map { (if (it.role == "admin") "★ " else "") + it.name }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Subscribers")
+            .setItems(names) { _, which ->
+                val u = subs[which]
+                if (u.id == Prefs.myId) return@setItems
+                val makeAdmin = u.role != "admin"
+                ui.launch {
+                    try {
+                        withContext(Dispatchers.IO) { Api.setChannelAdmin(chatId, u.id, makeAdmin) }
+                        Helpers.toast(this@ChatActivity, if (makeAdmin) "Promoted to admin" else "Demoted")
+                    } catch (e: Exception) { Helpers.toast(this@ChatActivity, "Failed") }
+                }
+            }
+            .show()
+    }
+
+    private fun showEditChannelDialog() {
+        val c = chat ?: return
+        val v = layoutInflater.inflate(R.layout.dialog_channel, null)
+        val title = v.findViewById<EditText>(R.id.et_channel_title)
+        val desc = v.findViewById<EditText>(R.id.et_channel_desc)
+        val username = v.findViewById<EditText>(R.id.et_channel_username)
+        title.setText(c.title)
+        desc.setText(c.description ?: "")
+        username.setText(c.username ?: "")
+        AlertDialog.Builder(this)
+            .setTitle("Edit channel")
+            .setView(v)
+            .setPositiveButton("Save") { _, _ ->
+                ui.launch {
+                    try {
+                        withContext(Dispatchers.IO) {
+                            Api.updateChannel(chatId,
+                                title = title.text?.toString()?.trim(),
+                                description = desc.text?.toString()?.trim() ?: "",
+                                username = username.text?.toString()?.trim()?.removePrefix("@"))
+                        }
+                        loadInfo()
+                        Helpers.toast(this@ChatActivity, "Channel updated")
+                    } catch (e: Exception) {
+                        Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Update failed")
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun showImage(m: Message) {
         val dialog = AlertDialog.Builder(this).create()
         val iv = ImageView(this)
@@ -791,6 +949,17 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                     catch (e: Exception) {}
                 }
             }
+            R.id.chat_edit -> showEditChannelDialog()
+            R.id.chat_subs -> showChannelInfo()
+            R.id.chat_leave -> AlertDialog.Builder(this)
+                .setMessage("Leave this channel?")
+                .setPositiveButton("Leave") { _, _ ->
+                    ui.launch {
+                        try { withContext(Dispatchers.IO) { Api.leaveChannel(chatId) }; finish() }
+                        catch (e: Exception) { Helpers.toast(this@ChatActivity, "Failed") }
+                    }
+                }
+                .setNegativeButton("Cancel", null).show()
             R.id.chat_clear -> AlertDialog.Builder(this)
                 .setMessage("Clear all history in this chat?")
                 .setPositiveButton("Clear") { _, _ ->
@@ -803,12 +972,12 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
 
     private fun showChatSearch() {
         val v = layoutInflater.inflate(R.layout.dialog_search_in_chat, null)
-        val input = v.findViewById<EditText>(R.id.et_chat_search)
+        val searchInput = v.findViewById<EditText>(R.id.et_chat_search)
         AlertDialog.Builder(this)
             .setTitle("Search in chat")
             .setView(v)
             .setPositiveButton("Search") { _, _ ->
-                val q = input.text?.toString()?.trim() ?: ""
+                val q = searchInput.text?.toString()?.trim() ?: ""
                 if (q.isEmpty()) return@setPositiveButton
                 ui.launch {
                     try {

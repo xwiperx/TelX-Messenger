@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@color/window_bg">
+    <androidx.appcompat.widget.Toolbar android:id="@+id/backup_toolbar"
+        android:layout_width="match_parent" android:layout_height="?attr/actionBarSize"
+        android:background="@color/toolbar_bg" app:titleTextColor="@color/text_primary" />
+    <ScrollView android:layout_width="match_parent" android:layout_height="match_parent">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:padding="24dp" android:gravity="center_horizontal">
+            <android.widget.ImageView android:layout_width="72dp" android:layout_height="72dp"
+                android:layout_gravity="center_horizontal" android:layout_marginBottom="16dp"
+                android:src="@drawable/ic_key" app:tint="@color/tg_blue"
+                android:background="@drawable/bg_search_pill" android:padding="18dp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textSize="18sp" android:textStyle="bold" android:textColor="@color/text_primary"
+                android:layout_gravity="center_horizontal" android:layout_marginBottom="8dp"
+                android:text="End-to-end encrypted backup" />
+            <TextView android:id="@+id/backup_note"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textSize="13sp" android:textColor="@color/text_secondary"
+                android:layout_marginBottom="20dp" />
+            <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="wrap_content"
+                app:cardCornerRadius="14dp" app:cardElevation="0dp"
+                app:cardBackgroundColor="@color/tile_bg" android:layout_marginBottom="20dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="18dp" android:gravity="center">
+                    <TextView android:id="@+id/backup_status"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textSize="15sp" android:textStyle="bold" android:textColor="@color/text_primary"
+                        android:gravity="center" android:text="Checking…" />
+                    <TextView android:id="@+id/backup_size"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textSize="13sp" android:textColor="@color/text_secondary"
+                        android:layout_marginTop="4dp" android:text="—" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_backup_create"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="Create backup now" android:backgroundTint="@color/tg_blue" android:textColor="#FFFFFF" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_backup_restore"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="10dp" android:text="Restore backup" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_backup_delete"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="10dp" android:text="Delete backup"
+                android:textColor="@color/error_red" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

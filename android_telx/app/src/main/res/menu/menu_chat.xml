@@ -7,8 +7,23 @@
         android:icon="@drawable/ic_search"
         app:showAsAction="always" />
     <item
+        android:id="@+id/chat_edit"
+        android:title="Edit channel"
+        android:visible="false"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/chat_subs"
+        android:title="Subscribers"
+        android:visible="false"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/chat_mute"
         android:title="Mute / Unmute"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/chat_leave"
+        android:title="Leave channel"
+        android:visible="false"
         app:showAsAction="never" />
     <item
         android:id="@+id/chat_clear"

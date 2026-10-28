@@ -26,4 +26,6 @@
     <color name="tile_bg_dark">#232E3A</color>
     <color name="input_bg">#FFFFFF</color>
     <color name="input_bg_dark">#232E3A</color>
+    <color name="date_pill">#FFFFFF</color>
+    <color name="date_text">#707579</color>
 </resources>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:paddingStart="20dp" android:paddingEnd="20dp" android:paddingTop="8dp">
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:hint="Channel name">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/et_channel_title"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:inputType="textCapSentences" android:maxLength="128" />
+    </com.google.android.material.textfield.TextInputLayout>
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:hint="Description (optional)">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/et_channel_desc"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:inputType="textMultiLine|textCapSentences" android:maxLines="3" android:maxLength="255" />
+    </com.google.android.material.textfield.TextInputLayout>
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:hint="Public link telx.ch/ (optional)">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/et_channel_username"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:inputType="text" android:maxLength="32" />
+    </com.google.android.material.textfield.TextInputLayout>
+</LinearLayout>

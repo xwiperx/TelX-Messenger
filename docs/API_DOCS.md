@@ -102,3 +102,41 @@ loop:
       new = POST longpoll.php {chatId:C, afterId:lastId}
       render new.messages + new.typing
 ```
+
+---
+
+# TelX 3 API — Current backend (`/telx/api/`, Kotlin app)
+
+All endpoints: `POST /telx/api/<module>.php` with JSON body `{action, ...}`, auth via `Authorization: Bearer <token>`.
+
+## Channels (chats.php)
+
+| Action | Body | Response |
+|---|---|---|
+| `create_channel` | `{title, description?, username?, member_ids[]}` | `{chat_id}` — creator becomes admin |
+| `join_channel` | `{chat_id}` or `{username}` | `{chat_id, joined}` |
+| `leave_channel` | `{chat_id}` | `{left}` |
+| `update_channel` | `{chat_id, title?, description?, username?, avatar_rel?}` (admin) | `{chat}` |
+| `channel_info` | `{chat_id}` | `{chat, subscribers[] (admin only)}` |
+| `set_channel_admin` | `{chat_id, user_id, admin:0/1}` (admin) | `{user_id, role}` |
+| `search_public` | `{q}` | `{channels:[{id,title,username,description,members_count,joined}]}` |
+
+Channel semantics: broadcast-only. `messages/send` rejects non-admin senders with `forbidden`.
+Admins can delete any message. Subscribers get `message_new` events like normal chats.
+`chat_public` now returns: `username`, `description`, `my_role` (channels), `typing` (bool), `peer_last_delivered` (private).
+
+## Encrypted backup (backup.php)
+
+Client-side AES-256-GCM (`TLX1` + salt16 + iv12 + ciphertext, base64). Password never leaves the device.
+
+| Action | Body | Response |
+|---|---|---|
+| `meta` | — | `{exists, size, created_ts}` |
+| `save` | `{data: base64}` (max 14 MB) | `{saved, size, created_ts}` |
+| `get` | — | `{data, size, created_ts}` |
+| `delete` | — | `{deleted}` |
+
+## Events (events.php)
+
+`{action: "poll", since_id, wait}` — `wait=0` replies instantly (client-paced polling, shared-hosting friendly);
+`wait>0` holds up to 22 s (classic long-poll). Response: `{events[], since_id, unread_total, server_time}`.

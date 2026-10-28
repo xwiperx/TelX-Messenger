@@ -1,13 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bubble_mine">#7DA854</color>
-    <color name="bubble_their">#212121</color>
+    <!-- Telegram night palette -->
+    <color name="bubble_mine">#2B5278</color>          <!-- telegram night green→blue for contrast w/ white text -->
+    <color name="bubble_their">#182533</color>
     <color name="text_primary">#FFFFFF</color>
     <color name="text_secondary">#ABABAB</color>
-    <color name="chat_bg">#0F0F0F</color>
-    <color name="divider">#2C2C2C</color>
+    <color name="chat_bg">#0E1621</color>
+    <color name="divider">#101921</color>
     <color name="window_bg">#17212B</color>
     <color name="toolbar_bg">#17212B</color>
     <color name="tile_bg">#232E3A</color>
     <color name="input_bg">#232E3A</color>
+    <color name="tg_blue_light">#1C2C3A</color>
+    <color name="date_pill">#182533</color>
+    <color name="date_text">#9FB2BF</color>
 </resources>

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@color/window_bg">
+    <androidx.appcompat.widget.Toolbar android:id="@+id/channel_toolbar"
+        android:layout_width="match_parent" android:layout_height="?attr/actionBarSize"
+        android:background="@color/toolbar_bg" app:titleTextColor="@color/text_primary" />
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:padding="20dp">
+            <android.widget.ImageView android:layout_width="72dp" android:layout_height="72dp"
+                android:layout_gravity="center_horizontal" android:layout_marginBottom="16dp"
+                android:src="@drawable/ic_volume" app:tint="@color/tg_blue"
+                android:background="@drawable/bg_search_pill" android:padding="18dp" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textSize="18sp" android:textStyle="bold" android:textColor="@color/text_primary"
+                android:layout_gravity="center_horizontal" android:layout_marginBottom="4dp"
+                android:text="What is your channel about?" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textSize="13sp" android:textColor="@color/text_secondary"
+                android:layout_gravity="center_horizontal" android:layout_marginBottom="20dp"
+                android:gravity="center"
+                android:text="Channels are a tool for broadcasting your messages to unlimited audiences." />
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Channel name">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/et_new_channel_title"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:inputType="textCapSentences" android:maxLength="128" />
+            </com.google.android.material.textfield.TextInputLayout>
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="12dp" android:hint="Description (optional)">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/et_new_channel_desc"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:inputType="textMultiLine|textCapSentences" android:maxLines="3" android:maxLength="255" />
+            </com.google.android.material.textfield.TextInputLayout>
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="12dp" android:hint="Public link telx.ch/ (optional)">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/et_new_channel_username"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:inputType="text" android:maxLength="32" />
+            </com.google.android.material.textfield.TextInputLayout>
+            <TextView android:id="@+id/tv_username_hint"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textSize="12sp" android:layout_marginTop="4dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btn_create_channel"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="24dp" android:text="Create channel"
+                android:backgroundTint="@color/tg_blue" android:textColor="#FFFFFF" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

@@ -103,6 +103,8 @@ class Chat(j: JSONObject) {
     val id: Int = j.optInt("id")
     val type: String = j.optString("type", "private")
     val title: String = j.optString("title", "")
+    val username: String? = j.optStringOrNull("username")
+    val description: String? = j.optStringOrNull("description")
     val secret: Boolean = j.optBoolean("secret")
     val avatar: String? = j.optStringOrNull("avatar")
     val unread: Int = j.optInt("unread", 0)
@@ -116,14 +118,22 @@ class Chat(j: JSONObject) {
     val lastTs: Long = j.optLong("last_ts", 0)
     val peer: User? = if (j.has("peer") && !j.isNull("peer")) User(j.getJSONObject("peer")) else null
     val peerLastRead: Int = j.optInt("peer_last_read", 0)
+    val peerLastDelivered: Int = j.optInt("peer_last_delivered", 0)
+    val myRole: String = j.optString("my_role", "")
+    val typing: Boolean = j.optBoolean("typing")
+
+    val isChannel: Boolean get() = type == "channel"
+    val isGroup: Boolean get() = type == "group"
+    val isAdmin: Boolean get() = (isChannel && myRole == "admin") || (isGroup && myRole == "admin")
 
     val displayName: String
         get() = when (type) {
             "saved" -> "Saved Messages"
             "group" -> if (title.isNotEmpty()) title else "Group"
+            "channel" -> if (title.isNotEmpty()) title else "Channel"
             else -> peer?.name ?: title
         }
-    val displayAvatar: String? get() = if (type == "group") avatar else peer?.avatar ?: avatar
+    val displayAvatar: String? get() = if (type == "group" || type == "channel") avatar else peer?.avatar ?: avatar
     val isSaved get() = type == "saved"
 }
 

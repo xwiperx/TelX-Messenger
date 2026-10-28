@@ -84,8 +84,20 @@ class ChatsAdapter(
             if (c.isSaved) avatar.bind("Saved", null, 0xFF3390EC.toInt())
             title.text = c.displayName
             val lm = c.lastMessage
-            if (lm == null) {
-                preview.text = if (c.type == "group") "${c.membersCount} members" else "No messages yet"
+            preview.setTypeface(null, android.graphics.Typeface.NORMAL)
+            preview.setTextColor(0xFF8A8A8E.toInt())
+            if (c.typing) {
+                preview.text = "typing…"
+                preview.setTypeface(null, android.graphics.Typeface.ITALIC)
+                preview.setTextColor(0xFF3390EC.toInt())
+                outIcon.visibility = View.GONE
+                ticks.visibility = View.GONE
+            } else if (lm == null) {
+                preview.text = when {
+                    c.isChannel -> "${c.membersCount} subscribers"
+                    c.type == "group" -> "${c.membersCount} members"
+                    else -> "No messages yet"
+                }
                 outIcon.visibility = View.GONE
                 ticks.visibility = View.GONE
             } else {
@@ -100,12 +112,18 @@ class ChatsAdapter(
                     else -> lm.text
                 }
                 if (lm.fwdFrom != null) p = "Fwd: $p"
-                if (c.type == "group" && lm.type != "system" && lm.senderName.isNotEmpty() && !lm.isMine)
+                if ((c.type == "group" || c.isChannel) && lm.type != "system" && lm.senderName.isNotEmpty() && !lm.isMine)
                     p = "${lm.senderName.split(" ").first()}: $p"
+                if (!c.draft.isNullOrEmpty()) {
+                    p = "Draft: ${c.draft}"
+                    preview.setTypeface(null, android.graphics.Typeface.ITALIC)
+                    preview.setTextColor(0xFFE53935.toInt())
+                }
                 if (lm.isMine && lm.type != "system") {
                     outIcon.visibility = View.VISIBLE
                     ticks.visibility = View.VISIBLE
                     ticks.setImageResource(if (lm.id <= c.peerLastRead) R.drawable.ic_read else R.drawable.ic_check_single)
+                    ticks.setColorFilter(if (lm.id <= c.peerLastRead) 0xFF3390EC.toInt() else 0xFF8A8A8E.toInt())
                 } else {
                     outIcon.visibility = View.GONE
                     ticks.visibility = View.GONE

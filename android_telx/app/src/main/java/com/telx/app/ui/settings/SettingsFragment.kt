@@ -61,6 +61,7 @@ class SettingsFragment : Fragment() {
 
         bindRow(v, R.id.row_theme) { showThemeDialog() }
         bindRow(v, R.id.row_wallpaper) { showWallpaperDialog() }
+        bindRow(v, R.id.row_backup) { startActivity(Intent(requireContext(), BackupActivity::class.java)) }
         bindRow(v, R.id.row_2fa) { show2faDialog() }
         bindRow(v, R.id.row_sessions) { startActivity(Intent(requireContext(), SessionsActivity::class.java)) }
         bindRow(v, R.id.row_password) { showChangePasswordDialog() }

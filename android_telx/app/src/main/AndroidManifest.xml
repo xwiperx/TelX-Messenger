@@ -78,6 +78,27 @@
             android:exported="false"
             android:theme="@style/Theme.TelX.NoActionBar" />
 
+        <activity
+            android:name=".ui.contacts.PickSecretActivity"
+            android:exported="false"
+            android:theme="@style/Theme.TelX.NoActionBar" />
+
+        <activity
+            android:name=".ui.chats.CreateChannelActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.TelX.NoActionBar" />
+
+        <activity
+            android:name=".ui.settings.BackupActivity"
+            android:exported="false"
+            android:theme="@style/Theme.TelX.NoActionBar" />
+
+        <activity
+            android:name=".ui.settings.BackupViewerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.TelX.NoActionBar" />
+
         <service
             android:name=".svc.PollService"
             android:exported="false"
