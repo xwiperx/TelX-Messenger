@@ -1,2 +1,30 @@
-skills/
+# TelX repository ignores
 node_modules/
+.next/
+out/
+build/
+.DS_Store
+*.pem
+npm-debug.log*
+.env*.local
+.vercel
+
+# local databases (user data)
+db/*.db
+db/uploads/
+*.sqlite3
+
+# sandbox / dev tooling — never publish credentials or scripts
+scripts/
+.zscripts/
+dev.log
+*.log
+Caddyfile
+agent-ctx/
+examples/
+tests/
+
+# PHP backend real config (use config.sample.php)
+php_telx/config.php
+php_telx/uploads/
+php_telx/htaccess_disabled

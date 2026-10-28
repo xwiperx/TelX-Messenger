@@ -1,0 +1,20 @@
+{
+  "name": "TelX Messenger",
+  "short_name": "TelX",
+  "description": "پیام‌رسان سریع و امن با طراحی تلگرامی",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#17212b",
+  "theme_color": "#3390EC",
+  "lang": "fa",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

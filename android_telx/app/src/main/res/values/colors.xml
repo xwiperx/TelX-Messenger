@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="tg_blue">#3390EC</color>
+    <color name="tg_blue_dark">#2B7FD4</color>
+    <color name="tg_dark_panel">#17212B</color>
+    <color name="white">#FFFFFF</color>
+</resources>

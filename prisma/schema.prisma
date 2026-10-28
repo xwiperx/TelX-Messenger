@@ -1,0 +1,233 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:../db/custom.db"
+}
+
+// ─────────────────────────────────────────────
+// TelX Messenger — Database Schema (Telegram-like)
+// ─────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  firstName    String
+  lastName     String   @default("")
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  bio          String   @default("")
+  avatarUrl    String?
+  // Privacy lock: blocks forwards & saves media of this user's chats
+  privacyLock  Boolean  @default(false)
+  // 2FA
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret  String? // pending code sent by email
+  // Presence
+  isOnline     Boolean  @default(false)
+  lastSeen     DateTime @default(now())
+  // Settings
+  wallpaper    String   @default("pattern1")
+  darkMode     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  messages      Message[]
+  members       ChatMember[]
+  sessions      Session[]
+  reactions     Reaction[]
+  stories       Story[]
+  storyViews    StoryView[]
+  contacts      Contact[]      @relation("ContactOwner")
+  contactOf     Contact[]      @relation("ContactTarget")
+  readReceipts  MessageRead[]
+  typingStates  TypingState[]
+  notifications Notification[]
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  userId     String
+  device     String   @default("Unknown Device")
+  ip         String   @default("")
+  current    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  lastActive DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Chat {
+  id        String   @id @default(cuid())
+  type      String   @default("private") // private | saved
+  createdAt DateTime @default(now())
+
+  members  ChatMember[]
+  messages Message[]
+}
+
+model ChatMember {
+  id               String  @id @default(cuid())
+  chatId           String
+  userId           String
+  unreadCount      Int     @default(0)
+  muted            Boolean @default(false)
+  lastReadMessageId String?
+  clearedBeforeId  String?
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id            String   @id @default(cuid())
+  chatId        String
+  senderId      String
+  text          String   @default("")
+  type          String   @default("text") // text | image | file | voice | link
+  mediaUrl      String?
+  fileName      String?
+  fileSize      Int?
+  duration      Int? // voice seconds
+  // Reply
+  replyToId     String?
+  // Forward
+  forwardedFrom String?
+  forwardedByName String?
+  // Link preview
+  previewTitle  String?
+  previewImage  String?
+  previewUrl    String?
+  previewDesc   String?
+  // State
+  isEdited      Boolean  @default(false)
+  isDeleted     Boolean  @default(false)
+  pinned        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  editedAt      DateTime?
+
+  chat    Chat         @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender  User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo Message?     @relation("MessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies Message[]    @relation("MessageReply")
+  reactions Reaction[]
+  reads   MessageRead[]
+
+  @@index([chatId, createdAt])
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+}
+
+model MessageRead {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  userId    String
+  contactId String
+  createdAt DateTime @default(now())
+
+  user    User @relation("ContactOwner", fields: [userId], references: [id], onDelete: Cascade)
+  contact User @relation("ContactTarget", fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contactId])
+}
+
+model Story {
+  id        String   @id @default(cuid())
+  userId    String
+  mediaUrl  String
+  mediaType String   @default("image") // image | video
+  duration  Int      @default(15) // 15 | 30 | 45 | 60
+  caption   String   @default("")
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  views StoryView[]
+
+  @@index([userId, createdAt])
+}
+
+model StoryView {
+  id       String   @id @default(cuid())
+  storyId  String
+  userId   String
+  viewedAt DateTime @default(now())
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, userId])
+}
+
+model TypingState {
+  id        String   @id @default(cuid())
+  chatId    String
+  userId    String
+  updatedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, userId])
+}
+
+model PasswordReset {
+  id        String   @id @default(cuid())
+  userId    String
+  code      String
+  used      Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  body      String
+  chatId    String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
+
+model Upload {
+  id        String   @id @default(cuid())
+  fileName  String   @unique
+  mime      String
+  size      Int
+  createdAt DateTime @default(now())
+}
