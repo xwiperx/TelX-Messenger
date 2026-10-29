@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:background="@color/window_bg"
+    android:paddingTop="10dp" android:paddingBottom="18dp">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:paddingStart="20dp" android:paddingBottom="6dp"
+        android:text="Create" android:textSize="16sp" android:textStyle="bold"
+        android:textColor="@color/text_primary" />
+    <LinearLayout android:id="@+id/create_group"
+        android:layout_width="match_parent" android:layout_height="52dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingStart="20dp" android:paddingEnd="20dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="26dp" android:layout_height="26dp"
+            android:src="@drawable/ic_group" app:tint="#FFFFFF"
+            android:background="@drawable/badge_unread" android:padding="5dp" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="18dp" android:text="New Group"
+            android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/create_channel"
+        android:layout_width="match_parent" android:layout_height="52dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingStart="20dp" android:paddingEnd="20dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="26dp" android:layout_height="26dp"
+            android:src="@drawable/ic_channel" app:tint="#FFFFFF"
+            android:background="@drawable/badge_unread" android:padding="5dp" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="18dp" android:text="New Channel"
+            android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/create_message"
+        android:layout_width="match_parent" android:layout_height="52dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingStart="20dp" android:paddingEnd="20dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="26dp" android:layout_height="26dp"
+            android:src="@drawable/ic_send" app:tint="#FFFFFF"
+            android:background="@drawable/badge_unread" android:padding="6dp" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="18dp" android:text="New Message"
+            android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/create_secret"
+        android:layout_width="match_parent" android:layout_height="52dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingStart="20dp" android:paddingEnd="20dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="26dp" android:layout_height="26dp"
+            android:src="@drawable/ic_lock" app:tint="#FFFFFF"
+            android:background="@drawable/badge_unread" android:padding="5dp" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="18dp" android:text="New Secret Chat"
+            android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+</LinearLayout>

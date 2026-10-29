@@ -124,7 +124,7 @@ class PollService : android.app.Service(), Events.Listener {
         val style = NotificationCompat.BigTextStyle()
             .bigText(if (count > 1) "($count new) $text" else text)
 
-        val n = NotificationCompat.Builder(this, App.CH_MESSAGES)
+        val builder = NotificationCompat.Builder(this, App.CH_MESSAGES)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(sender)
             .setContentText(text)
@@ -135,7 +135,11 @@ class PollService : android.app.Service(), Events.Listener {
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .addAction(replyAction)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .build()
+        // pre-O devices: channel sound doesn't exist, set it explicitly
+        if (Build.VERSION.SDK_INT < 26) {
+            builder.setSound(android.net.Uri.parse("android.resource://${packageName}/${R.raw.tg_note}"))
+        }
+        val n = builder.build()
         try {
             NotificationManagerCompat.from(this).notify(notifId, n)
         } catch (_: SecurityException) {}

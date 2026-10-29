@@ -26,6 +26,11 @@
         android:visible="false"
         app:showAsAction="never" />
     <item
+        android:id="@+id/chat_delete"
+        android:title="Delete channel"
+        android:visible="false"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/chat_clear"
         android:title="Clear history"
         app:showAsAction="never" />

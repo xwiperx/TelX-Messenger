@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <group android:id="@+id/g_create">
+        <item android:id="@+id/nav_new_group" android:icon="@drawable/ic_group" android:title="New Group" />
+        <item android:id="@+id/nav_new_channel" android:icon="@drawable/ic_channel" android:title="New Channel" />
+        <item android:id="@+id/nav_new_secret" android:icon="@drawable/ic_lock" android:title="New Secret Chat" />
+    </group>
+    <group android:id="@+id/g_main" android:checkableBehavior="single">
+        <item android:id="@+id/nav_chats" android:icon="@drawable/ic_chat_bubble" android:title="All Chats" android:checked="true" />
+        <item android:id="@+id/nav_contacts" android:icon="@drawable/ic_person" android:title="Contacts" />
+        <item android:id="@+id/nav_saved" android:icon="@drawable/ic_bookmark" android:title="Saved Messages" />
+        <item android:id="@+id/nav_settings" android:icon="@drawable/ic_settings" android:title="Settings" />
+        <item android:id="@+id/nav_night" android:icon="@drawable/ic_moon" android:title="Night Mode"
+            android:checkable="false" app:actionLayout="@layout/row_switch" />
+    </group>
+</menu>

@@ -23,7 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Multi-select contact picker — creates a new group from selection. */
+/** Multi-select contact picker — creates a new group, or returns a selection when result_mode is set. */
 class PickUsersActivity : AppCompatActivity() {
 
     private val ui = CoroutineScope(Dispatchers.Main)
@@ -31,6 +31,7 @@ class PickUsersActivity : AppCompatActivity() {
     private val selected = HashSet<Int>()
     private lateinit var adapter: PickAdapter
     private lateinit var counter: TextView
+    private val resultMode get() = intent.getBooleanExtra("result_mode", false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,6 +40,10 @@ class PickUsersActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = "New Group"
         counter = findViewById(R.id.pick_counter)
+        if (resultMode) {
+            supportActionBar?.title = "Add Members"
+            findViewById<MaterialButton>(R.id.btn_create).text = "Add"
+        }
         val recycler = findViewById<RecyclerView>(R.id.pick_recycler)
         adapter = PickAdapter(users) { u, checked ->
             if (checked) selected.add(u.id) else selected.remove(u.id)
@@ -49,6 +54,11 @@ class PickUsersActivity : AppCompatActivity() {
 
         findViewById<MaterialButton>(R.id.btn_create).setOnClickListener {
             if (selected.isEmpty()) { Helpers.toast(this, "Select at least one member"); return@setOnClickListener }
+            if (resultMode) {
+                setResult(RESULT_OK, Intent().putIntegerArrayListExtra("selected_ids", ArrayList(selected)))
+                finish()
+                return@setOnClickListener
+            }
             val v = layoutInflater.inflate(R.layout.dialog_group_title, null)
             val input = v.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.et_group_title)
             AlertDialog.Builder(this)

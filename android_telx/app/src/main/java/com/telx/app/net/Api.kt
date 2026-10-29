@@ -168,11 +168,13 @@ object Api {
             put("chat_id", chatId)
             if (!title.isNullOrEmpty()) put("title", title)
             if (description != null) put("description", description)
-            if (!username.isNullOrEmpty()) put("username", username)
+            // username "" => make the channel private (server clears the public link)
+            if (username != null) put("username", username)
             if (avatarRel != null) put("avatar_rel", avatarRel)
         }
 
     fun channelInfo(chatId: Int): JSONObject = call("chats", "channel_info") { put("chat_id", chatId) }
+    fun deleteChannel(chatId: Int) = call("chats", "delete_channel") { put("chat_id", chatId) }
     fun setChannelAdmin(chatId: Int, userId: Int, admin: Boolean) =
         call("chats", "set_channel_admin") { put("chat_id", chatId); put("user_id", userId); put("admin", if (admin) 1 else 0) }
     fun searchPublic(q: String): JSONArray = call("chats", "search_public") { put("q", q) }.getJSONArray("channels")

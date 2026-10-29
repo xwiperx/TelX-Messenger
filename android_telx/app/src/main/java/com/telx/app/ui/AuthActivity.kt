@@ -62,6 +62,16 @@ class AuthActivity : AppCompatActivity() {
     private lateinit var btnSwitch: TextView
     private lateinit var btnForgot: TextView
     private lateinit var progress: View
+    private var avatarUri: Uri? = null
+    private lateinit var avatarWrap: View
+    private lateinit var avatarView: com.telx.app.ui.common.AvatarView
+
+    private val pickAvatar = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()) { res ->
+        val path = res.data?.getStringExtra("path") ?: return@registerForActivityResult
+        avatarUri = Uri.parse("file://$path")
+        avatarView.bind("", avatarUri.toString(), 0xFF3390EC.toInt())
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,6 +98,12 @@ class AuthActivity : AppCompatActivity() {
         btnSwitch = findViewById(R.id.btn_switch)
         btnForgot = findViewById(R.id.btn_forgot)
         progress = findViewById(R.id.auth_progress)
+        avatarWrap = findViewById(R.id.auth_avatar_wrap)
+        avatarView = findViewById(R.id.auth_avatar)
+        avatarWrap.setOnClickListener {
+            pickAvatar.launch(Intent(this, com.telx.app.ui.common.CropActivity::class.java)
+                .putExtra("mode", "circle"))
+        }
 
         etUsername.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
@@ -136,6 +152,7 @@ class AuthActivity : AppCompatActivity() {
     private fun setMode(m: Mode) {
         mode = m
         checkIcon.visibility = View.GONE
+        avatarWrap.visibility = View.GONE
         listOf(tilFirst, tilLast, tilUsername, tilEmail, tilPassword, tilCode).forEach { it.visibility = View.GONE }
         btnForgot.visibility = View.GONE
         when (m) {
@@ -153,6 +170,7 @@ class AuthActivity : AppCompatActivity() {
             Mode.REGISTER -> {
                 titleView.text = "Sign Up"
                 subtitle.text = "Create your TelX account"
+                avatarWrap.visibility = View.VISIBLE
                 tilFirst.visibility = View.VISIBLE
                 tilLast.visibility = View.VISIBLE
                 tilUsername.visibility = View.VISIBLE
@@ -308,8 +326,33 @@ class AuthActivity : AppCompatActivity() {
         Prefs.privacyLock = user.optBoolean("privacy_lock")
         com.telx.app.net.Events.start()
         PollService.start(this)
-        goMain()
+        if (mode == Mode.REGISTER && avatarUri != null) {
+            // upload the chosen profile photo, then continue to the app
+            ui.launch {
+                val f = copyUriToCache(avatarUri!!)
+                if (f != null) {
+                    try {
+                        val up = withContext(Dispatchers.IO) { Api.upload("avatar", f) }
+                        val pj = withContext(Dispatchers.IO) {
+                            Api.profileUpdate(avatarRel = up.optString("rel"))
+                        }
+                        val u = pj.optJSONObject("user")
+                        if (u != null) Prefs.myAvatar = u.optStringOrNull("avatar")
+                        f.delete()
+                    } catch (_: Exception) {}
+                }
+                goMain()
+            }
+        } else {
+            goMain()
+        }
     }
+
+    private fun copyUriToCache(uri: Uri): java.io.File? = try {
+        val f = java.io.File(cacheDir, "signup_${System.currentTimeMillis()}.jpg")
+        contentResolver.openInputStream(uri)?.use { input -> f.outputStream().use { input.copyTo(it) } }
+        if (f.exists() && f.length() > 0) f else null
+    } catch (e: Exception) { null }
 
     private fun goMain() {
         startActivity(Intent(this, MainActivity::class.java))

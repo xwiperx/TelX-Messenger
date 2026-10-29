@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:gravity="bottom"
+    android:background="@drawable/bg_drawer_header"
+    android:paddingStart="16dp" android:paddingEnd="16dp"
+    android:paddingTop="34dp" android:paddingBottom="14dp"
+    android:layoutDirection="ltr">
+    <FrameLayout android:layout_width="62dp" android:layout_height="62dp">
+        <com.telx.app.ui.common.AvatarView android:id="@+id/drawer_avatar"
+            android:layout_width="58dp" android:layout_height="58dp"
+            android:layout_gravity="center" />
+        <ImageView android:layout_width="22dp" android:layout_height="22dp"
+            android:layout_gravity="bottom|end" android:src="@drawable/ic_camera"
+            android:tint="#FFFFFF" android:background="@drawable/bg_camera_badge"
+            android:padding="4dp" android:contentDescription="avatar" />
+    </FrameLayout>
+    <TextView android:id="@+id/drawer_name"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="10dp" android:textSize="16sp" android:textStyle="bold"
+        android:textColor="#FFFFFF" android:maxLines="1" android:ellipsize="end" />
+    <TextView android:id="@+id/drawer_username"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="2dp" android:textSize="13sp"
+        android:textColor="#CCE4FF" android:maxLines="1" android:ellipsize="end" />
+</LinearLayout>

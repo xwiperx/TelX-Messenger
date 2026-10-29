@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@color/window_bg">
+
+    <androidx.appcompat.widget.Toolbar android:id="@+id/wallpaper_toolbar"
+        android:layout_width="match_parent" android:layout_height="?attr/actionBarSize"
+        android:background="@color/toolbar_bg" app:title="Chat Wallpaper"
+        app:titleTextColor="@color/text_primary" />
+
+    <!-- live preview with demo bubbles -->
+    <FrameLayout android:id="@+id/wallpaper_preview"
+        android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="0.45">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_gravity="start|center_vertical" android:layout_marginStart="16dp"
+            android:layout_marginBottom="26dp" android:background="@drawable/bg_bubble_their"
+            android:paddingStart="12dp" android:paddingEnd="12dp"
+            android:paddingTop="8dp" android:paddingBottom="8dp"
+            android:text="This is how your chat looks" android:textSize="14sp"
+            android:textColor="@color/text_primary" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_gravity="end|center_vertical" android:layout_marginEnd="16dp"
+            android:layout_marginTop="30dp" android:background="@drawable/bg_bubble_mine"
+            android:paddingStart="12dp" android:paddingEnd="12dp"
+            android:paddingTop="8dp" android:paddingBottom="8dp"
+            android:text="Perfect! 🎨" android:textSize="14sp"
+            android:textColor="#FFFFFF" />
+    </FrameLayout>
+
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="0.55" android:fillViewport="true">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:paddingBottom="24dp">
+
+            <LinearLayout android:id="@+id/row_gallery"
+                android:layout_width="match_parent" android:layout_height="52dp"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:paddingStart="16dp" android:paddingEnd="16dp"
+                android:background="?android:attr/selectableItemBackground">
+                <ImageView android:layout_width="26dp" android:layout_height="26dp"
+                    android:src="@drawable/ic_image" app:tint="@color/tg_blue" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginStart="18dp" android:text="Choose from gallery"
+                    android:textSize="16sp" android:textColor="@color/tg_blue" />
+            </LinearLayout>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" />
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="52dp"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:paddingStart="16dp" android:paddingEnd="16dp">
+                <ImageView android:layout_width="26dp" android:layout_height="26dp"
+                    android:src="@drawable/ic_edit" app:tint="@color/tg_blue" />
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                    android:layout_marginStart="18dp" android:text="Blur wallpaper"
+                    android:textSize="16sp" android:textColor="@color/text_primary" />
+                <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/sw_blur"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="52dp"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:paddingStart="16dp" android:paddingEnd="16dp">
+                <ImageView android:layout_width="26dp" android:layout_height="26dp"
+                    android:src="@drawable/ic_eye" app:tint="@color/tg_blue" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginStart="18dp" android:text="Dim"
+                    android:textSize="16sp" android:textColor="@color/text_primary" />
+                <SeekBar android:id="@+id/seek_dim"
+                    android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                    android:layout_marginStart="16dp" android:max="60" />
+            </LinearLayout>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:paddingStart="16dp" android:paddingTop="14dp" android:paddingBottom="8dp"
+                android:text="COLORS" android:textSize="12sp" android:textStyle="bold"
+                android:textColor="@color/text_secondary" />
+            <LinearLayout android:id="@+id/colors_row"
+                android:layout_width="match_parent" android:layout_height="48dp"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:paddingStart="16dp" android:paddingEnd="16dp" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:paddingStart="16dp" android:paddingTop="14dp" android:paddingBottom="8dp"
+                android:text="PATTERNS" android:textSize="12sp" android:textStyle="bold"
+                android:textColor="@color/text_secondary" />
+            <LinearLayout android:id="@+id/patterns_row"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:paddingStart="16dp" android:paddingEnd="16dp" />
+
+            <TextView android:id="@+id/btn_reset_wallpaper"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:padding="16dp" android:text="Reset to default wallpaper"
+                android:textSize="15sp" android:textColor="@color/error_red" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

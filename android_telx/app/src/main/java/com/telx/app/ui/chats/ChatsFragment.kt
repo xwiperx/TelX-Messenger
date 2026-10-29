@@ -7,6 +7,7 @@ import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
@@ -69,21 +70,25 @@ class ChatsFragment : Fragment(), Events.Listener {
     }
 
     private fun showCreateSheet() {
-        val options = arrayOf("New Group", "New Channel", "New Message", "New Secret Chat")
-        AlertDialog.Builder(requireContext())
-            .setTitle("Create")
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> startActivity(Intent(requireContext(),
-                        com.telx.app.ui.contacts.PickUsersActivity::class.java))
-                    1 -> startActivity(Intent(requireContext(),
-                        com.telx.app.ui.chats.CreateChannelActivity::class.java))
-                    2 -> startActivity(Intent(requireContext(), SearchActivity::class.java))
-                    3 -> startActivity(Intent(requireContext(),
-                        com.telx.app.ui.contacts.PickSecretActivity::class.java))
-                }
-            }
-            .show()
+        val d = com.google.android.material.bottomsheet.BottomSheetDialog(requireContext())
+        val v = layoutInflater.inflate(R.layout.sheet_create, null)
+        v.findViewById<LinearLayout>(R.id.create_group).setOnClickListener {
+            d.dismiss(); startActivity(Intent(requireContext(),
+                com.telx.app.ui.contacts.PickUsersActivity::class.java))
+        }
+        v.findViewById<LinearLayout>(R.id.create_channel).setOnClickListener {
+            d.dismiss(); startActivity(Intent(requireContext(),
+                com.telx.app.ui.chats.CreateChannelActivity::class.java))
+        }
+        v.findViewById<LinearLayout>(R.id.create_message).setOnClickListener {
+            d.dismiss(); startActivity(Intent(requireContext(), SearchActivity::class.java))
+        }
+        v.findViewById<LinearLayout>(R.id.create_secret).setOnClickListener {
+            d.dismiss(); startActivity(Intent(requireContext(),
+                com.telx.app.ui.contacts.PickSecretActivity::class.java))
+        }
+        d.setContentView(v)
+        d.show()
     }
 
     private fun openChat(c: Chat) {
@@ -103,7 +108,7 @@ class ChatsFragment : Fragment(), Events.Listener {
                     chats.add(c)
                     com.telx.app.svc.PollService.MuteCache.setMuted(c.id, c.muted)
                 }
-                (activity as? com.telx.app.ui.MainActivity)?.setNavBadge(chatsJ.optInt("total_unread", 0))
+                (activity as? com.telx.app.ui.MainActivity)?.refreshDrawerHeader()
                 try {
                     val feed = withContext(Dispatchers.IO) { Api.storiesFeed() }
                     stories.clear()

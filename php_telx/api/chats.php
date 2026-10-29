@@ -259,18 +259,37 @@ case 'update_channel': {
         if (mb_strlen($desc) > 255) fail('invalid', 'Description max 255 chars');
         db()->prepare('UPDATE chats SET description = ? WHERE id = ?')->execute([$desc === '' ? null : $desc, $cid]);
     }
-    $username = trim(p('username') ?? '');
-    if ($username !== '') {
-        if (!valid_chat_username($username)) fail('invalid', 'Bad username format');
-        $own = strtolower((string)$chat['username']) === strtolower($username);
-        if (!$own && chat_username_taken($username)) fail('taken', 'This link is already taken');
-        db()->prepare('UPDATE chats SET username = ? WHERE id = ?')->execute([$username, $cid]);
+    $usernameParam = p('username');
+    if ($usernameParam !== null) {
+        $username = trim($usernameParam);
+        if ($username === '') {
+            // empty username => make the channel private (no public link)
+            db()->prepare('UPDATE chats SET username = NULL WHERE id = ?')->execute([$cid]);
+        } else {
+            if (!valid_chat_username($username)) fail('invalid', 'Bad username format');
+            $own = strtolower((string)$chat['username']) === strtolower($username);
+            if (!$own && chat_username_taken($username)) fail('taken', 'This link is already taken');
+            db()->prepare('UPDATE chats SET username = ? WHERE id = ?')->execute([$username, $cid]);
+        }
     }
     $avatarRel = p('avatar_rel');
     if ($avatarRel !== null)
         db()->prepare('UPDATE chats SET avatar = ? WHERE id = ?')->execute([$avatarRel === '' ? null : $avatarRel, $cid]);
     emit(chat_member_ids($cid, (int)$me['uid']), 'chat_updated', ['chat_id' => $cid], $cid, (int)$me['uid']);
     ok(['chat' => chat_public(chat_of($cid), $m, (int)$me['uid'])]);
+}
+
+case 'delete_channel': {
+    $me = me();
+    $cid = pint('chat_id');
+    $m = require_member($cid);
+    if ($m['role'] !== 'admin') fail('forbidden', 'Only channel admins can delete it');
+    $chat = chat_of($cid);
+    if (!$chat || $chat['type'] !== 'channel') fail('invalid', 'Not a channel');
+    $everyone = chat_member_ids($cid);
+    db()->prepare('DELETE FROM chats WHERE id = ?')->execute([$cid]);
+    emit($everyone, 'chat_deleted', ['chat_id' => $cid], $cid, (int)$me['uid']);
+    ok(['deleted' => true]);
 }
 
 case 'channel_info': {
@@ -379,7 +398,7 @@ case 'add_members': {
     $cid = pint('chat_id');
     $m = require_member($cid);
     $chat = chat_of($cid);
-    if (!$chat || $chat['type'] !== 'group') fail('invalid', 'Not a group');
+    if (!$chat || !in_array($chat['type'], ['group', 'channel'], true)) fail('invalid', 'Not a group or channel');
     $ids = array_map('intval', parr('user_ids'));
     $ins = db()->prepare("INSERT IGNORE INTO chat_members (chat_id, user_id, role, joined_at) VALUES (?,?,'member',UTC_TIMESTAMP())");
     $added = [];
@@ -393,7 +412,8 @@ case 'add_members': {
                        VALUES (?,?,?,'system',?,UTC_TIMESTAMP())")->execute([$cid, null, '', $sysTxt]);
     }
     $others = chat_member_ids($cid, (int)$me['uid']);
-    emit($others, 'group_updated', ['chat_id' => $cid, 'added' => array_column($added, 'id')], $cid, (int)$me['uid']);
+    $evt = $chat['type'] === 'channel' ? 'chat_updated' : 'group_updated';
+    emit($others, $evt, ['chat_id' => $cid, 'added' => array_column($added, 'id')], $cid, (int)$me['uid']);
     emit(array_column($added, 'id'), 'chat_created', ['chat_id' => $cid], $cid, (int)$me['uid']);
     ok(['added' => $added]);
 }

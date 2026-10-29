@@ -257,8 +257,9 @@ class MessageAdapter(
                             m.id > 0 && m.id <= adapter.peerDeliveredId -> R.drawable.ic_read
                             else -> R.drawable.ic_check_single
                         })
+                        // Telegram blue bubble: white ticks — read = full white, sent = soft white
                         ticks.setColorFilter(
-                            if (m.id > 0 && m.id <= adapter.peerReadId) 0xFF3390EC.toInt() else 0xFF8A8A8E.toInt())
+                            if (m.id > 0 && m.id <= adapter.peerReadId) 0xFFFFFFFF.toInt() else 0xB8FFFFFF.toInt())
                     }
                 }
             } else {
@@ -279,11 +280,14 @@ class MessageAdapter(
                 }
             } else reactions.visibility = View.GONE
 
-            itemView.setOnClickListener { adapter.onMessageClick?.invoke(m) }
-            itemView.setOnLongClickListener { adapter.onMessageLongClick?.invoke(m); true }
-            if (m.state == Message.STATE_FAILED) {
-                itemView.setOnClickListener { adapter.onRetryClick?.invoke(m) }
+            itemView.setOnClickListener {
+                if (m.state == Message.STATE_FAILED && m.isMine && m.id < 0) {
+                    adapter.onRetryClick?.invoke(m)
+                } else {
+                    adapter.onMessageClick?.invoke(m)
+                }
             }
+            itemView.setOnLongClickListener { adapter.onMessageLongClick?.invoke(m); true }
         }
 
         private fun toggleVoice(m: Message, btn: ImageView) {

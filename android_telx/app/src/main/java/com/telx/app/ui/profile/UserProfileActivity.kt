@@ -34,7 +34,8 @@ class UserProfileActivity : AppCompatActivity() {
     private lateinit var bio: TextView
     private lateinit var btnMessage: MaterialButton
     private lateinit var btnContact: MaterialButton
-    private lateinit var btnBlock: MaterialButton
+    private lateinit var btnBlock: TextView
+    private lateinit var btnEdit: MaterialButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,6 +52,16 @@ class UserProfileActivity : AppCompatActivity() {
         btnMessage = findViewById(R.id.up_message)
         btnContact = findViewById(R.id.up_contact)
         btnBlock = findViewById(R.id.up_block)
+        btnEdit = findViewById(R.id.up_edit)
+        avatar.setOnClickListener {
+            val url = user?.avatar ?: Prefs.myAvatar
+            if (!url.isNullOrEmpty())
+                startActivity(Intent(this, com.telx.app.ui.common.PhotoViewerActivity::class.java)
+                    .putExtra("url", url))
+        }
+        btnEdit.setOnClickListener {
+            startActivity(Intent(this, EditProfileActivity::class.java))
+        }
 
         val uid = intent.getIntExtra("user_id", 0)
         load(uid)
@@ -114,12 +125,27 @@ class UserProfileActivity : AppCompatActivity() {
         name.text = u.name
         status.text = Helpers.lastSeenText(u.online, u.lastTs)
         status.setTextColor(if (u.online) 0xFF3390EC.toInt() else 0xFF8A8A8E.toInt())
-        username.text = "@${u.username}"
+        username.text = if (u.username.isNotEmpty()) "@${u.username}" else "No username"
         bio.text = if (u.bio.isEmpty()) "No bio yet" else u.bio
-        bio.visibility = if (u.bio.isEmpty()) View.GONE else View.VISIBLE
         btnContact.text = if (u.isContact) "Remove contact" else "Add contact"
-        btnBlock.text = if (u.blockedByMe) "Unblock" else "Block"
-        btnMessage.visibility = if (u.blockedMe || u.isMe) View.GONE else View.VISIBLE
+        btnBlock.text = if (u.blockedByMe) "Unblock user" else "Block user"
+        if (u.isMe) {
+            // my own profile: offer profile editing instead of messaging controls
+            btnMessage.visibility = View.GONE
+            btnContact.visibility = View.GONE
+            btnBlock.visibility = View.GONE
+            btnEdit.visibility = View.VISIBLE
+        } else {
+            btnMessage.visibility = if (u.blockedMe) View.GONE else View.VISIBLE
+            btnContact.visibility = View.VISIBLE
+            btnBlock.visibility = View.VISIBLE
+            btnEdit.visibility = View.GONE
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        user?.let { load(it.id) }
     }
 
     override fun onSupportNavigateUp(): Boolean { finish(); return true }

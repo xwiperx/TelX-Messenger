@@ -12,7 +12,7 @@ import com.telx.app.svc.PollService
 class App : Application() {
 
     companion object {
-        const val CH_MESSAGES = "messages"
+        const val CH_MESSAGES = "messages_v2"   // v2: carries the Telegram-style notification sound
         const val CH_SERVICE = "service"
         lateinit var instance: App
             private set
@@ -45,9 +45,19 @@ class App : Application() {
     private fun createChannels() {
         if (Build.VERSION.SDK_INT < 26) return
         val nm = getSystemService(NotificationManager::class.java) ?: return
+        // remove the old silent channel from previous builds
+        nm.deleteNotificationChannel("messages")
+        // Telegram-style notification sound (bundled raw resource)
+        val soundUri = android.net.Uri.parse("android.resource://${packageName}/${R.raw.tg_note}")
+        val audioAttrs = android.media.AudioAttributes.Builder()
+            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT)
+            .build()
         nm.createNotificationChannel(
             NotificationChannel(CH_MESSAGES, "Messages", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "New message notifications"
+                setSound(soundUri, audioAttrs)
+                enableVibration(true)
             })
         nm.createNotificationChannel(
             NotificationChannel(CH_SERVICE, "Background connection", NotificationManager.IMPORTANCE_MIN))

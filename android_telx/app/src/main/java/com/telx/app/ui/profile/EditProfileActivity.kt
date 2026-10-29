@@ -47,16 +47,11 @@ class EditProfileActivity : AppCompatActivity() {
     private lateinit var checkIcon: ImageView
     private lateinit var btnSave: MaterialButton
 
-    private val pickAvatar = registerForActivityResult(
-        ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            try {
-                contentResolver.takePersistableUriPermission(
-                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            } catch (_: SecurityException) {}
-            avatarUri = uri
-            avatar.bind("me", uri.toString(), Helpers.colorFor(Prefs.myId))
-        }
+    private val cropLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()) { res ->
+        val path = res.data?.getStringExtra("path") ?: return@registerForActivityResult
+        avatarUri = Uri.parse("file://$path")
+        avatar.bind("me", avatarUri.toString(), Helpers.colorFor(Prefs.myId))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -82,9 +77,8 @@ class EditProfileActivity : AppCompatActivity() {
         initialUsername = Prefs.myUsername
 
         avatar.bind(Prefs.myName, Prefs.myAvatar, Helpers.colorFor(Prefs.myId))
-        val onCamera = View.OnClickListener { pickAvatar.launch(arrayOf("image/*")) }
-        cameraBadge.setOnClickListener(onCamera)
-        avatar.setOnClickListener(onCamera)
+        avatar.setOnClickListener { cropLauncher.launch(Intent(this, com.telx.app.ui.common.CropActivity::class.java).putExtra("mode", "circle")) }
+        cameraBadge.setOnClickListener { cropLauncher.launch(Intent(this, com.telx.app.ui.common.CropActivity::class.java).putExtra("mode", "circle")) }
 
         etUsername.addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable?) = scheduleCheck(s?.toString()?.trim() ?: "")

@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:background="@color/window_bg">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:paddingBottom="18dp"
+        android:layoutDirection="ltr">
+        <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:padding="18dp" android:gravity="center_horizontal">
+            <FrameLayout android:layout_width="96dp" android:layout_height="96dp"
+                android:layout_gravity="center_horizontal">
+                <com.telx.app.ui.common.AvatarView android:id="@+id/channel_sheet_avatar"
+                    android:layout_width="96dp" android:layout_height="96dp" />
+                <FrameLayout android:id="@+id/channel_sheet_photo_btn"
+                    android:layout_width="28dp" android:layout_height="28dp"
+                    android:layout_gravity="bottom|end"
+                    android:background="@drawable/badge_unread">
+                    <ImageView android:layout_width="16dp" android:layout_height="16dp"
+                        android:layout_gravity="center" android:src="@drawable/ic_camera"
+                        app:tint="#FFFFFF" android:contentDescription="change photo" />
+                </FrameLayout>
+            </FrameLayout>
+        </FrameLayout>
+        <TextView android:id="@+id/channel_sheet_name"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:gravity="center" android:textSize="20sp" android:textStyle="bold"
+            android:textColor="@color/text_primary" android:paddingStart="20dp" android:paddingEnd="20dp" />
+        <TextView android:id="@+id/channel_sheet_subs"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:gravity="center" android:textSize="13sp"
+            android:textColor="@color/text_secondary" android:layout_marginTop="2dp" />
+        <TextView android:id="@+id/channel_sheet_desc"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:gravity="center" android:textSize="14sp"
+            android:textColor="@color/text_primary" android:layout_marginTop="10dp"
+            android:paddingStart="24dp" android:paddingEnd="24dp" />
+        <TextView android:id="@+id/channel_sheet_link"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:gravity="center" android:textSize="13sp"
+            android:textColor="@color/tg_blue" android:layout_marginTop="4dp" />
+
+        <LinearLayout android:id="@+id/channel_add_subs"
+            android:layout_width="match_parent" android:layout_height="50dp"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:paddingStart="20dp" android:paddingEnd="20dp" android:layout_marginTop="14dp"
+            android:background="?android:attr/selectableItemBackground">
+            <ImageView android:layout_width="24dp" android:layout_height="24dp"
+                android:src="@drawable/ic_person" app:tint="@color/tg_blue" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="18dp" android:text="Add subscribers"
+                android:textSize="15sp" android:textColor="@color/text_primary" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/channel_toggle_private"
+            android:layout_width="match_parent" android:layout_height="50dp"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:paddingStart="20dp" android:paddingEnd="20dp"
+            android:background="?android:attr/selectableItemBackground">
+            <ImageView android:layout_width="24dp" android:layout_height="24dp"
+                android:src="@drawable/ic_lock" app:tint="@color/tg_blue" />
+            <TextView android:id="@+id/channel_private_label"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="18dp" android:text="Make channel private"
+                android:textSize="15sp" android:textColor="@color/text_primary" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/channel_manage_admins"
+            android:layout_width="match_parent" android:layout_height="50dp"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:paddingStart="20dp" android:paddingEnd="20dp"
+            android:background="?android:attr/selectableItemBackground">
+            <ImageView android:layout_width="24dp" android:layout_height="24dp"
+                android:src="@drawable/ic_shield" app:tint="@color/tg_blue" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="18dp" android:text="Manage admins"
+                android:textSize="15sp" android:textColor="@color/text_primary" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/channel_leave"
+            android:layout_width="match_parent" android:layout_height="50dp"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:paddingStart="20dp" android:paddingEnd="20dp"
+            android:background="?android:attr/selectableItemBackground">
+            <ImageView android:layout_width="24dp" android:layout_height="24dp"
+                android:src="@drawable/ic_logout" app:tint="@color/error_red" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="18dp" android:text="Leave channel"
+                android:textSize="15sp" android:textColor="@color/error_red" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/channel_delete"
+            android:layout_width="match_parent" android:layout_height="50dp"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:paddingStart="20dp" android:paddingEnd="20dp"
+            android:background="?android:attr/selectableItemBackground">
+            <ImageView android:layout_width="24dp" android:layout_height="24dp"
+                android:src="@drawable/ic_trash" app:tint="@color/error_red" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="18dp" android:text="Delete channel"
+                android:textSize="15sp" android:textColor="@color/error_red" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

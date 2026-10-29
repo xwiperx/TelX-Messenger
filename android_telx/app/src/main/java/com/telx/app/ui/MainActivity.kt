@@ -3,35 +3,45 @@ package com.telx.app.ui
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.view.Menu
-import android.view.MenuItem
+import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
-import com.google.android.material.badge.BadgeDrawable
-import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.navigation.NavigationView
+import com.google.android.material.switchmaterial.SwitchMaterial
 import com.telx.app.R
 import com.telx.app.data.Event
 import com.telx.app.data.Prefs
+import com.telx.app.net.Api
 import com.telx.app.net.Events
 import com.telx.app.ui.chats.ChatsFragment
+import com.telx.app.ui.common.AvatarView
 import com.telx.app.ui.common.Helpers
 import com.telx.app.ui.contacts.ContactsFragment
 import com.telx.app.ui.contacts.SearchActivity
-import com.telx.app.ui.profile.ProfileFragment
 import com.telx.app.ui.settings.SettingsFragment
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-class MainActivity : AppCompatActivity(), Events.Listener {
+/**
+ * Telegram-style main screen: toolbar + drawer menu (no bottom tabs),
+ * chat list with stories strip lives in ChatsFragment.
+ */
+class MainActivity : AppCompatActivity() {
 
-    private lateinit var nav: BottomNavigationView
+    private val ui = CoroutineScope(Dispatchers.Main)
     private val chatsFragment by lazy { ChatsFragment() }
     private val contactsFragment by lazy { ContactsFragment() }
     private val settingsFragment by lazy { SettingsFragment() }
-    private val profileFragment by lazy { ProfileFragment() }
 
+    private lateinit var drawer: DrawerLayout
+    private lateinit var drawerView: NavigationView
     private var pendingStoryVideo = false
+
     private val pickStory = registerForActivityResult(
         ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -39,25 +49,10 @@ class MainActivity : AppCompatActivity(), Events.Listener {
             showStoryDurationDialog(uri)
         }
     }
-    private val pickWallpaper = registerForActivityResult(
-        ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            runCatching {
-                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            Prefs.wallpaper = "uri:$uri"
-            com.telx.app.ui.chat.WallpaperHelper.version++
-            Helpers.toast(this, "Wallpaper set for all chats")
-        }
-    }
 
     fun pickStoryMedia(isVideo: Boolean) {
         pendingStoryVideo = isVideo
         pickStory.launch(arrayOf(if (isVideo) "video/*" else "image/*"))
-    }
-
-    fun pickWallpaper() {
-        pickWallpaper.launch(arrayOf("image/*"))
     }
 
     private fun showStoryDurationDialog(uri: Uri) {
@@ -73,15 +68,13 @@ class MainActivity : AppCompatActivity(), Events.Listener {
     }
 
     private fun uploadStory(uri: Uri, duration: Int) {
-        val ui = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main)
         Helpers.toast(this, "Uploading story…")
         ui.launch {
             try {
                 val f = copyToCache(uri)
                 if (f == null) { Helpers.toast(this@MainActivity, "Could not read file"); return@launch }
-                val kind = if (pendingStoryVideo) "story" else "story"
                 val up = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    com.telx.app.net.Api.upload(kind, f)
+                    com.telx.app.net.Api.upload("story", f)
                 }
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     com.telx.app.net.Api.storyUpload(
@@ -112,34 +105,70 @@ class MainActivity : AppCompatActivity(), Events.Listener {
             return
         }
         setContentView(R.layout.activity_main)
-        nav = findViewById(R.id.bottom_nav)
-        nav.background = null
-        nav.setOnItemSelectedListener { item ->
+
+        val toolbar = findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.main_toolbar)
+        drawer = findViewById(R.id.drawer_layout)
+        drawerView = findViewById(R.id.drawer_view)
+
+        setSupportActionBar(toolbar)
+        toolbar.setNavigationOnClickListener { drawer.openDrawer(androidx.core.view.GravityCompat.START) }
+        toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-                R.id.nav_chats -> show(chatsFragment)
-                R.id.nav_contacts -> show(contactsFragment)
-                R.id.nav_settings -> show(settingsFragment)
-                R.id.nav_profile -> show(profileFragment)
+                R.id.action_search -> { startActivity(Intent(this, SearchActivity::class.java)); true }
+                else -> false
             }
+        }
+
+        // drawer header = my profile
+        val header = drawerView.getHeaderView(0)
+        val avatar = header.findViewById<AvatarView>(R.id.drawer_avatar)
+        val nameView = header.findViewById<TextView>(R.id.drawer_name)
+        val usernameView = header.findViewById<TextView>(R.id.drawer_username)
+        fun bindHeader() {
+            avatar.bind(Prefs.myName, Prefs.myAvatar, Helpers.colorFor(Prefs.myId))
+            nameView.text = Prefs.myName.ifEmpty { "TelX user" }
+            usernameView.text = if (Prefs.myUsername.isNotEmpty()) "@${Prefs.myUsername}" else "tap to add details"
+        }
+        bindHeader()
+        header.setOnClickListener {
+            drawer.closeDrawer(androidx.core.view.GravityCompat.START)
+            startActivity(Intent(this, com.telx.app.ui.profile.UserProfileActivity::class.java)
+                .putExtra("user_id", Prefs.myId))
+        }
+
+        val nightSwitch = drawerView.menu.findItem(R.id.nav_night)?.actionView?.findViewById<SwitchMaterial>(R.id.drawer_night_switch)
+        nightSwitch?.isChecked = Prefs.theme == 2
+        nightSwitch?.setOnCheckedChangeListener { _, checked ->
+            Prefs.theme = if (checked) 2 else 1
+            applyTheme()
+        }
+
+        drawerView.setNavigationItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_new_group -> startActivity(Intent(this, com.telx.app.ui.contacts.PickUsersActivity::class.java))
+                R.id.nav_new_channel -> startActivity(Intent(this, com.telx.app.ui.chats.CreateChannelActivity::class.java))
+                R.id.nav_new_secret -> startActivity(Intent(this, com.telx.app.ui.contacts.PickSecretActivity::class.java))
+                R.id.nav_saved -> openSavedMessages()
+                R.id.nav_contacts -> { show(contactsFragment); drawer.closeDrawer(androidx.core.view.GravityCompat.START); return@setNavigationItemSelectedListener true }
+                R.id.nav_settings -> { show(settingsFragment); drawer.closeDrawer(androidx.core.view.GravityCompat.START); return@setNavigationItemSelectedListener true }
+                R.id.nav_chats -> { show(chatsFragment); drawer.closeDrawer(androidx.core.view.GravityCompat.START); return@setNavigationItemSelectedListener true }
+                R.id.nav_night -> { nightSwitch?.toggle() }
+            }
+            drawer.closeDrawer(androidx.core.view.GravityCompat.START)
             true
         }
-        if (savedInstanceState == null) {
-            nav.selectedItemId = R.id.nav_chats
-        } else {
-            // re-attach the previously selected tab
-            when (nav.selectedItemId) {
-                R.id.nav_contacts -> show(contactsFragment)
-                R.id.nav_settings -> show(settingsFragment)
-                R.id.nav_profile -> show(profileFragment)
-                else -> show(chatsFragment)
-            }
-        }
-        setNavBadge(intent?.getIntExtra("unread_total", 0) ?: 0)
+
+        show(chatsFragment)
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setNavBadge(intent.getIntExtra("unread_total", 0))
+    private fun openSavedMessages() {
+        ui.launch {
+            try {
+                val j = withContext(Dispatchers.IO) { Api.chatOpenSaved() }
+                startActivity(Intent(this@MainActivity, com.telx.app.ui.chat.ChatActivity::class.java)
+                    .putExtra("chat_id", j.getInt("chat_id")))
+            } catch (e: Exception) { Helpers.toast(this@MainActivity, "Couldn't open Saved Messages") }
+        }
     }
 
     fun applyTheme() {
@@ -156,48 +185,30 @@ class MainActivity : AppCompatActivity(), Events.Listener {
             .commitAllowingStateLoss()
     }
 
-    fun setNavBadge(total: Int) {
-        val badge: BadgeDrawable = nav.getOrCreateBadge(R.id.nav_chats)
-        if (total > 0) {
-            badge.isVisible = true
-            badge.number = total
-        } else {
-            badge.isVisible = false
-            badge.clearNumber()
-        }
-    }
-
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.menu_main, menu)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.action_search -> { startActivity(Intent(this, SearchActivity::class.java)); true }
-            else -> super.onOptionsItemSelected(item)
-        }
+    fun refreshDrawerHeader() {
+        val header = drawerView.getHeaderView(0)
+        header.findViewById<AvatarView>(R.id.drawer_avatar)
+            .bind(Prefs.myName, Prefs.myAvatar, Helpers.colorFor(Prefs.myId))
+        header.findViewById<TextView>(R.id.drawer_name).text = Prefs.myName.ifEmpty { "TelX user" }
+        header.findViewById<TextView>(R.id.drawer_username).text =
+            if (Prefs.myUsername.isNotEmpty()) "@${Prefs.myUsername}" else "tap to add details"
     }
 
     override fun onResume() {
         super.onResume()
-        Events.addListener(this)
+        refreshDrawerHeader()
+        Events.addListener(eventsListener)
     }
 
     override fun onPause() {
         super.onPause()
-        Events.removeListener(this)
+        Events.removeListener(eventsListener)
     }
 
-    override fun onEvent(e: Event) {
-        if (e.type == "_unread") {
-            runOnUiThread { setNavBadge(e.data.optInt("unread_total", 0)) }
-            return
-        }
-        if (e.type == "message_new" || e.type == "message_read" || e.type == "chat_created") {
-            runOnUiThread {
-                val t = e.data.optInt("unread_total", -1)
-                if (t >= 0) setNavBadge(t)
+    private val eventsListener = object : Events.Listener {
+        override fun onEvent(e: Event) {
+            if (e.type == "profile_updated") {
+                runOnUiThread { refreshDrawerHeader() }
             }
         }
     }

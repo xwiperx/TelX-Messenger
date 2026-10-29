@@ -167,6 +167,9 @@ class StoriesRowAdapter(private val groups: List<StoryGroup>) :
 
     override fun onBindViewHolder(h: RecyclerView.ViewHolder, position: Int) {
         if (h is AddVH) {
+            // Telegram-style: my own avatar (photo, or initials when none) with a + badge
+            h.avatar.bind(com.telx.app.data.Prefs.myName, com.telx.app.data.Prefs.myAvatar,
+                Helpers.colorFor(com.telx.app.data.Prefs.myId))
             h.root.setOnClickListener { onAddStory?.invoke() }
         } else if (h is UserVH) {
             val g = groups[position - 1]
@@ -178,6 +181,7 @@ class StoriesRowAdapter(private val groups: List<StoryGroup>) :
     }
 
     class AddVH(v: View) : RecyclerView.ViewHolder(v) {
+        val avatar: AvatarView = v.findViewById(R.id.story_add_avatar)
         val root: View = v
     }
 

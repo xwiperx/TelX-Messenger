@@ -60,7 +60,9 @@ class SettingsFragment : Fragment() {
         }
 
         bindRow(v, R.id.row_theme) { showThemeDialog() }
-        bindRow(v, R.id.row_wallpaper) { showWallpaperDialog() }
+        bindRow(v, R.id.row_wallpaper) {
+            startActivity(Intent(requireContext(), com.telx.app.ui.chat.WallpaperActivity::class.java))
+        }
         bindRow(v, R.id.row_backup) { startActivity(Intent(requireContext(), BackupActivity::class.java)) }
         bindRow(v, R.id.row_2fa) { show2faDialog() }
         bindRow(v, R.id.row_sessions) { startActivity(Intent(requireContext(), SessionsActivity::class.java)) }
@@ -97,31 +99,6 @@ class SettingsFragment : Fragment() {
                 d.dismiss()
             }
             .show()
-    }
-
-    private fun showWallpaperDialog() {
-        val options = arrayOf("Default pattern", "Pattern — Dots", "Pattern — Waves",
-            "Pattern — Stars", "Choose from gallery", "Reset to default")
-        AlertDialog.Builder(requireContext())
-            .setTitle("Chat wallpaper")
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> { Prefs.wallpaper = "pattern:0"; notifyWallpaper() }
-                    1 -> { Prefs.wallpaper = "pattern:1"; notifyWallpaper() }
-                    2 -> { Prefs.wallpaper = "pattern:2"; notifyWallpaper() }
-                    3 -> { Prefs.wallpaper = "pattern:3"; notifyWallpaper() }
-                    4 -> {
-                        (activity as? MainActivity)?.pickWallpaper()
-                    }
-                    5 -> { Prefs.wallpaper = null; notifyWallpaper() }
-                }
-            }
-            .show()
-    }
-
-    private fun notifyWallpaper() {
-        com.telx.app.ui.chat.WallpaperHelper.version++
-        Helpers.toast(context, "Wallpaper updated for all chats")
     }
 
     private fun show2faDialog() {

@@ -166,6 +166,7 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         adapter.onReactClick = { m, emoji -> react(m, emoji) }
         adapter.onMessageClick = { msg ->
             if (selecting) toggleSelect(msg)
+            else showMessageActions(msg)
         }
         recycler.adapter = adapter
         recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
@@ -329,6 +330,7 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         m.findItem(R.id.chat_edit)?.isVisible = c.isChannel && c.myRole == "admin"
         m.findItem(R.id.chat_subs)?.isVisible = c.isChannel
         m.findItem(R.id.chat_leave)?.isVisible = c.isChannel
+        m.findItem(R.id.chat_delete)?.isVisible = c.isChannel && c.myRole == "admin"
         m.findItem(R.id.chat_clear)?.isVisible = !c.isChannel || c.myRole == "admin"
     }
 
@@ -849,30 +851,139 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         }
     }
 
+    private fun confirmDeleteChannel() {
+        AlertDialog.Builder(this)
+            .setTitle("Delete channel")
+            .setMessage("The channel \"${chat?.displayName}\" and all of its messages will be removed for everyone. This cannot be undone.")
+            .setPositiveButton("Delete") { _, _ ->
+                ui.launch {
+                    try {
+                        withContext(Dispatchers.IO) { Api.deleteChannel(chatId) }
+                        Helpers.toast(this@ChatActivity, "Channel deleted")
+                        finish()
+                    } catch (e: Exception) {
+                        Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Delete failed")
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null).show()
+    }
+
     private fun showChannelInfo() {
         ui.launch {
             try {
                 val j = withContext(Dispatchers.IO) { Api.channelInfo(chatId) }
                 val c = Chat(j.getJSONObject("chat"))
                 val subs = com.telx.app.data.User.parseArray(j.optJSONArray("subscribers"))
-                val sb = StringBuilder()
-                sb.append("${c.membersCount} subscribers\n\n")
-                if (!c.description.isNullOrEmpty()) sb.append(c.description).append("\n\n")
-                if (!c.username.isNullOrEmpty()) sb.append("link: telx.ch/").append(c.username)
-                val builder = AlertDialog.Builder(this@ChatActivity)
-                    .setTitle(c.displayName)
-                    .setMessage(sb.toString())
-                    .setPositiveButton("Leave channel") { _, _ ->
-                        ui.launch {
-                            try { withContext(Dispatchers.IO) { Api.leaveChannel(chatId) }; finish() }
-                            catch (e: Exception) { Helpers.toast(this@ChatActivity, "Failed") }
-                        }
-                    }
-                    .setNegativeButton("Close", null)
-                if (subs.isNotEmpty()) builder.setNeutralButton("Manage admins") { _, _ -> manageChannelAdmins(subs) }
-                builder.show()
+                withContext(Dispatchers.Main) { renderChannelSheet(c, subs) }
             } catch (e: Exception) { Helpers.toast(this@ChatActivity, "Couldn't load channel") }
         }
+    }
+
+    private val channelPhotoResult = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()) { res ->
+        val path = res.data?.getStringExtra("path") ?: return@registerForActivityResult
+        ui.launch {
+            try {
+                val f = File(path)
+                val up = withContext(Dispatchers.IO) { Api.upload("avatar", f) }
+                withContext(Dispatchers.IO) { Api.updateChannel(chatId, avatarRel = up.optString("rel")) }
+                f.delete()
+                loadInfo()
+                Helpers.toast(this@ChatActivity, "Channel photo updated")
+            } catch (e: Exception) {
+                Helpers.toast(this@ChatActivity, "Upload failed")
+            }
+        }
+    }
+
+    private val addSubscribersResult = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()) { res ->
+        val ids = res.data?.getIntegerArrayListExtra("selected_ids") ?: return@registerForActivityResult
+        if (ids.isEmpty()) return@registerForActivityResult
+        ui.launch {
+            try {
+                withContext(Dispatchers.IO) { Api.addMembers(chatId, ids) }
+                Helpers.toast(this@ChatActivity, "Subscribers added")
+                loadInfo()
+            } catch (e: Exception) {
+                Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Failed")
+            }
+        }
+    }
+
+    private fun renderChannelSheet(c: Chat, subs: List<User>) {
+        val d = BottomSheetDialog(this)
+        val v = layoutInflater.inflate(R.layout.sheet_channel_info, null)
+        val avatar = v.findViewById<AvatarView>(R.id.channel_sheet_avatar)
+        val name = v.findViewById<TextView>(R.id.channel_sheet_name)
+        val subsText = v.findViewById<TextView>(R.id.channel_sheet_subs)
+        val desc = v.findViewById<TextView>(R.id.channel_sheet_desc)
+        val link = v.findViewById<TextView>(R.id.channel_sheet_link)
+        val isAdmin = c.myRole == "admin"
+
+        avatar.bind(c.displayName, c.displayAvatar, Helpers.colorFor(c.id))
+        name.text = c.displayName
+        subsText.text = "${c.membersCount} subscribers"
+        desc.text = if (c.description.isNullOrEmpty()) "No description" else c.description
+        link.text = if (!c.username.isNullOrEmpty()) "telx.ch/${c.username}" else "Private channel — invite only"
+        link.visibility = View.VISIBLE
+
+        v.findViewById<View>(R.id.channel_sheet_photo_btn).visibility = if (isAdmin) View.VISIBLE else View.GONE
+        v.findViewById<View>(R.id.channel_sheet_photo_btn).setOnClickListener {
+            d.dismiss()
+            channelPhotoResult.launch(Intent(this, com.telx.app.ui.common.CropActivity::class.java)
+                .putExtra("mode", "circle"))
+        }
+
+        val addRow = v.findViewById<View>(R.id.channel_add_subs)
+        addRow.visibility = if (isAdmin) View.VISIBLE else View.GONE
+        addRow.setOnClickListener {
+            d.dismiss()
+            addSubscribersResult.launch(Intent(this, com.telx.app.ui.contacts.PickUsersActivity::class.java)
+                .putExtra("result_mode", true))
+        }
+        val privateRow = v.findViewById<View>(R.id.channel_toggle_private)
+        privateRow.visibility = if (isAdmin) View.VISIBLE else View.GONE
+        privateRow.findViewById<TextView>(R.id.channel_private_label).text =
+            if (c.username.isNullOrEmpty()) "Make channel public" else "Make channel private"
+        privateRow.setOnClickListener {
+            d.dismiss()
+            if (c.username.isNullOrEmpty()) {
+                // going public requires choosing a public link
+                showEditChannelDialog()
+            } else {
+                ui.launch {
+                    try {
+                        withContext(Dispatchers.IO) { Api.updateChannel(chatId, username = "") }
+                        Helpers.toast(this@ChatActivity, "Channel is private now")
+                        loadInfo()
+                    } catch (e: Exception) {
+                        Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Failed")
+                    }
+                }
+            }
+        }
+        val adminsRow = v.findViewById<View>(R.id.channel_manage_admins)
+        adminsRow.visibility = if (isAdmin && subs.isNotEmpty()) View.VISIBLE else View.GONE
+        adminsRow.setOnClickListener { d.dismiss(); manageChannelAdmins(subs) }
+        val deleteRow = v.findViewById<View>(R.id.channel_delete)
+        deleteRow.visibility = if (isAdmin) View.VISIBLE else View.GONE
+        deleteRow.setOnClickListener { d.dismiss(); confirmDeleteChannel() }
+        v.findViewById<View>(R.id.channel_leave).setOnClickListener {
+            d.dismiss()
+            AlertDialog.Builder(this)
+                .setMessage("Leave this channel?")
+                .setPositiveButton("Leave") { _, _ ->
+                    ui.launch {
+                        try { withContext(Dispatchers.IO) { Api.leaveChannel(chatId) }; finish() }
+                        catch (e: Exception) { Helpers.toast(this@ChatActivity, "Failed") }
+                    }
+                }
+                .setNegativeButton("Cancel", null).show()
+        }
+        d.setContentView(v)
+        d.show()
     }
 
     private fun manageChannelAdmins(subs: List<User>) {
@@ -951,6 +1062,7 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
             }
             R.id.chat_edit -> showEditChannelDialog()
             R.id.chat_subs -> showChannelInfo()
+            R.id.chat_delete -> confirmDeleteChannel()
             R.id.chat_leave -> AlertDialog.Builder(this)
                 .setMessage("Leave this channel?")
                 .setPositiveButton("Leave") { _, _ ->

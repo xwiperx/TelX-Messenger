@@ -40,7 +40,7 @@ object Prefs {
         get() = sp.getInt("theme", 0)
         set(v) = sp.edit().putInt("theme", v).apply()
 
-    /** Wallpaper: null = default pattern, otherwise "pattern:N" or "uri:<content-uri>" */
+    /** Wallpaper: null = default pattern, otherwise "pattern:N", "color:#RRGGBB" or "custom:filename" */
     var wallpaper: String?
         get() = sp.getString("wallpaper", null)
         set(v) = sp.edit().putString("wallpaper", v).apply()
@@ -48,6 +48,11 @@ object Prefs {
     var wallpaperDim: Int
         get() = sp.getInt("wallpaper_dim", 12)
         set(v) = sp.edit().putInt("wallpaper_dim", v).apply()
+
+    /** blur the custom wallpaper (Telegram-style) */
+    var wallpaperBlur: Boolean
+        get() = sp.getBoolean("wallpaper_blur", false)
+        set(v) = sp.edit().putBoolean("wallpaper_blur", v).apply()
 
     var privacyLock: Boolean
         get() = sp.getBoolean("privacy_lock", false)
