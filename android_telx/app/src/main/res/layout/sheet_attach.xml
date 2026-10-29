@@ -14,7 +14,51 @@
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:layout_marginStart="18dp" android:text="Photo or Video" android:textSize="15sp"
             android:textColor="@color/text_primary" />
-        <LinearLayout android:id="@+id/attach_location"
+    <LinearLayout android:id="@+id/attach_edit_photo"
+        android:layout_width="match_parent" android:layout_height="56dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingStart="20dp" android:paddingEnd="20dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_rotate" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="18dp" android:text="Edit photo (filters, rotate)" android:textSize="15sp"
+            android:textColor="@color/text_primary" />
+    </LinearLayout>
+<LinearLayout android:id="@+id/attach_album"
+        android:layout_width="match_parent" android:layout_height="56dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingStart="20dp" android:paddingEnd="20dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_image" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="18dp" android:text="Album — send up to 6 photos" android:textSize="15sp"
+            android:textColor="@color/text_primary" />
+    </LinearLayout>
+<LinearLayout android:id="@+id/attach_trim"
+        android:layout_width="match_parent" android:layout_height="56dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingStart="20dp" android:paddingEnd="20dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_scissors" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="18dp" android:text="Trim video before sending" android:textSize="15sp"
+            android:textColor="@color/text_primary" />
+    </LinearLayout>
+<LinearLayout android:id="@+id/attach_music"
+        android:layout_width="match_parent" android:layout_height="56dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingStart="20dp" android:paddingEnd="20dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_music" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="18dp" android:text="Audio files (music player)" android:textSize="15sp"
+            android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/attach_location"
         android:layout_width="match_parent" android:layout_height="56dp"
         android:orientation="horizontal" android:gravity="center_vertical"
         android:paddingStart="20dp" android:paddingEnd="20dp"

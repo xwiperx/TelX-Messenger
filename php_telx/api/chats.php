@@ -29,6 +29,11 @@ function chat_public(array $chat, array $my_membership, int $viewer, ?array $pee
         'members_count' => 0,
         'last_message' => null, 'last_ts' => null,
     ];
+    // v6 fields
+    $a['slow_mode'] = (int)($chat['slow_mode'] ?? 0);
+    $a['join_request'] = (int)($chat['join_request'] ?? 0) === 1;
+    $a['hidden'] = (int)($my_membership['hidden'] ?? 0) === 1;
+    $a['perms'] = !empty($chat['perms']) ? json_decode($chat['perms'], true) : null;
     if ($chat['last_message_id']) {
         $m = message_by_id((int)$chat['last_message_id']);
         if ($m && !(int)$m['deleted']) {
@@ -61,7 +66,7 @@ function chat_public(array $chat, array $my_membership, int $viewer, ?array $pee
     }
     if (!isset($a['peer_last_read'])) $a['peer_last_read'] = 0;
     if (!isset($a['peer_last_delivered'])) $a['peer_last_delivered'] = 0;
-    if ($chat['type'] === 'channel') $a['my_role'] = (string)$my_membership['role'];
+    if ($chat['type'] === 'channel' || $chat['type'] === 'group') $a['my_role'] = (string)$my_membership['role'];
     $a['typing'] = $typing;
     return $a;
 }
@@ -72,9 +77,9 @@ case 'list': {
     $me = me();
     flush_due();
     $includeArchived = pint('include_archived') === 1;
-    $st = db()->prepare('SELECT c.*, m.unread_count, m.muted, m.pinned, m.archived, m.draft, m.role, m.last_read_message_id
+    $st = db()->prepare('SELECT c.*, m.unread_count, m.muted, m.pinned, m.archived, m.hidden, m.draft, m.role, m.last_read_message_id
                          FROM chat_members m JOIN chats c ON c.id = m.chat_id
-                         WHERE m.user_id = ?' . ($includeArchived ? '' : ' AND m.archived = 0') . '
+                         WHERE m.user_id = ? AND m.hidden = 0' . ($includeArchived ? '' : ' AND m.archived = 0') . '
                          ORDER BY m.pinned DESC, COALESCE(c.last_message_at, c.created_at) DESC
                          LIMIT 200');
     $st->execute([$me['uid']]);
@@ -224,7 +229,16 @@ case 'join_channel': {
         if (!$chat) fail('not_found', 'Channel not found');
         $cid = (int)$chat['id'];
     } else fail('invalid', 'chat_id or username required');
-    if (my_membership($cid, (int)$me['uid'])) ok(['chat_id' => $cid, 'joined' => false]);
+    $existing = my_membership($cid, (int)$me['uid']);
+    if ($existing && (string)$existing['role'] === 'banned') fail('banned', 'You are banned from this channel');
+    if ($existing) ok(['chat_id' => $cid, 'joined' => false]);
+    if ((int)($chat['join_request'] ?? 0) === 1) {
+        db()->prepare('INSERT IGNORE INTO join_requests (chat_id, user_id, created_at) VALUES (?,?,UTC_TIMESTAMP())')
+            ->execute([$cid, $me['uid']]);
+        emit(chat_admin_ids($cid), 'join_request',
+            ['chat_id' => $cid, 'user' => user_public($me), 'ts' => time()], $cid, (int)$me['uid']);
+        ok(['chat_id' => $cid, 'joined' => false, 'requested' => true]);
+    }
     db()->prepare("INSERT INTO chat_members (chat_id, user_id, role, joined_at) VALUES (?,?,'member',UTC_TIMESTAMP())")->execute([$cid, $me['uid']]);
     emit(chat_member_ids($cid, (int)$me['uid']), 'chat_updated', ['chat_id' => $cid], $cid, (int)$me['uid']);
     emit($me['uid'], 'chat_created', ['chat_id' => $cid], $cid);
@@ -541,12 +555,58 @@ case 'join_invite': {
     if ($code === '') fail('invalid', 'Invite code required');
     // accept both the raw code and the full link (…/invite/CODE)
     if (preg_match('#invite/([A-Za-z0-9]+)#', $code, $mm)) $code = $mm[1];
+    // v6: multiple named links (invite_links) take priority over the legacy chats.invite_code
+    $st = db()->prepare('SELECT * FROM invite_links WHERE code = ? LIMIT 1');
+    $st->execute([$code]);
+    $linkRow = $st->fetch();
+    if ($linkRow) {
+        if ((int)$linkRow['revoked'] === 1) fail('not_found', 'This invite link was revoked');
+        if ($linkRow['expires_at'] !== null && (int)ts($linkRow['expires_at']) < time()) fail('not_found', 'This invite link has expired');
+        if ((int)$linkRow['usage_limit'] > 0 && (int)$linkRow['uses'] >= (int)$linkRow['usage_limit'])
+            fail('not_found', 'This invite link has reached its member limit');
+        $st = db()->prepare('SELECT * FROM chats WHERE id = ? LIMIT 1');
+        $st->execute([(int)$linkRow['chat_id']]);
+        $chat = $st->fetch();
+        if (!$chat || !in_array($chat['type'], ['group', 'channel'], true)) fail('not_found', 'This invite link is invalid');
+        $cid = (int)$chat['id'];
+        $existing = my_membership($cid, (int)$me['uid']);
+        if ($existing && (string)$existing['role'] === 'banned') fail('banned', 'You are banned from this chat');
+        if ($existing) ok(['chat_id' => $cid, 'joined' => false]);
+        if ((int)($chat['join_request'] ?? 0) === 1) {
+            db()->prepare('INSERT IGNORE INTO join_requests (chat_id, user_id, created_at) VALUES (?,?,UTC_TIMESTAMP())')
+                ->execute([$cid, $me['uid']]);
+            emit(chat_admin_ids($cid), 'join_request',
+                ['chat_id' => $cid, 'user' => user_public($me), 'ts' => time()], $cid, (int)$me['uid']);
+            ok(['chat_id' => $cid, 'joined' => false, 'requested' => true]);
+        }
+        db()->prepare("INSERT INTO chat_members (chat_id, user_id, role, joined_at) VALUES (?,?,'member',UTC_TIMESTAMP())")
+            ->execute([$cid, $me['uid']]);
+        db()->prepare('UPDATE invite_links SET uses = uses + 1 WHERE id = ?')->execute([(int)$linkRow['id']]);
+        if ($chat['type'] === 'group') {
+            db()->prepare("INSERT INTO messages (chat_id, sender_id, sender_name, type, text, created_at)
+                           VALUES (?,NULL,'','system',?,UTC_TIMESTAMP())")
+                ->execute([$cid, trim($me['first_name']) . ' joined via invite link']);
+        }
+        emit(chat_member_ids($cid, (int)$me['uid']), 'chat_updated', ['chat_id' => $cid], $cid, (int)$me['uid']);
+        emit($me['uid'], 'chat_created', ['chat_id' => $cid], $cid);
+        ok(['chat_id' => $cid, 'joined' => true]);
+    }
     $st = db()->prepare('SELECT * FROM chats WHERE invite_code = ? LIMIT 1');
     $st->execute([$code]);
     $chat = $st->fetch();
     if (!$chat || !in_array($chat['type'], ['group', 'channel'], true)) fail('not_found', 'This invite link is invalid');
     $cid = (int)$chat['id'];
-    if (my_membership($cid, (int)$me['uid'])) ok(['chat_id' => $cid, 'joined' => false]);
+    $existing = my_membership($cid, (int)$me['uid']);
+    if ($existing && (string)$existing['role'] === 'banned') fail('banned', 'You are banned from this chat');
+    if ($existing) ok(['chat_id' => $cid, 'joined' => false]);
+    // v6: admin approval required → create a join request instead of joining
+    if ((int)($chat['join_request'] ?? 0) === 1) {
+        db()->prepare('INSERT IGNORE INTO join_requests (chat_id, user_id, created_at) VALUES (?,?,UTC_TIMESTAMP())')
+            ->execute([$cid, $me['uid']]);
+        emit(chat_admin_ids($cid), 'join_request',
+            ['chat_id' => $cid, 'user' => user_public($me), 'ts' => time()], $cid, (int)$me['uid']);
+        ok(['chat_id' => $cid, 'joined' => false, 'requested' => true]);
+    }
     db()->prepare("INSERT INTO chat_members (chat_id, user_id, role, joined_at) VALUES (?,?,'member',UTC_TIMESTAMP())")
         ->execute([$cid, $me['uid']]);
     if ($chat['type'] === 'group') {
@@ -633,6 +693,214 @@ case 'clear_history': {
         ->execute([$cid]);
     emit(chat_member_ids($cid), 'chat_cleared', ['chat_id' => $cid], $cid, (int)$me['uid']);
     ok(['cleared' => true]);
+}
+
+case 'set_slow_mode': {
+    // Telegram-style slow mode for groups (0 = off, else seconds between messages)
+    $me = me(); $cid = pint('chat_id'); $m = require_member($cid); $chat = chat_of($cid);
+    if (!$chat || $chat['type'] !== 'group') fail('invalid', 'Not a group');
+    if ($m['role'] !== 'admin') fail('forbidden', 'Only admins can set slow mode');
+    $secs = max(0, min(86400, pint('seconds')));
+    db()->prepare('UPDATE chats SET slow_mode = ? WHERE id = ?')->execute([$secs, $cid]);
+    emit(chat_member_ids($cid), 'chat_updated', ['chat_id' => $cid, 'slow_mode' => $secs], $cid, (int)$me['uid']);
+    ok(['slow_mode' => $secs]);
+}
+
+case 'set_join_request': {
+    // admin approval required before new members can join
+    $me = me(); $cid = pint('chat_id'); $m = require_member($cid); $chat = chat_of($cid);
+    if (!$chat || !in_array($chat['type'], ['group','channel'], true)) fail('invalid', 'Not a group or channel');
+    if ($m['role'] !== 'admin') fail('forbidden', 'Only admins can change this');
+    $on = pint('enabled') === 1 ? 1 : 0;
+    db()->prepare('UPDATE chats SET join_request = ? WHERE id = ?')->execute([$on, $cid]);
+    ok(['join_request' => $on === 1]);
+}
+
+case 'set_perms': {
+    // granular member permissions: {send_media, send_links, send_stickers, add_members}
+    $me = me(); $cid = pint('chat_id'); $m = require_member($cid); $chat = chat_of($cid);
+    if (!$chat || !in_array($chat['type'], ['group','channel'], true)) fail('invalid', 'Not a group or channel');
+    if ($m['role'] !== 'admin') fail('forbidden', 'Only admins can change permissions');
+    $p = json_decode((string)(p('perms') ?? '{}'), true);
+    if (!is_array($p)) fail('invalid', 'Bad perms JSON');
+    $clean = [];
+    foreach (['send_media','send_links','send_stickers','add_members'] as $k)
+        $clean[$k] = (int)($p[$k] ?? 1) === 1 ? 1 : 0;
+    db()->prepare('UPDATE chats SET perms = ? WHERE id = ?')->execute([json_encode($clean), $cid]);
+    ok(['perms' => $clean]);
+}
+
+case 'ban_member': {
+    $me = me(); $cid = pint('chat_id'); $m = require_member($cid); $chat = chat_of($cid);
+    $uid = pint('user_id');
+    if (!$chat || !in_array($chat['type'], ['group','channel'], true)) fail('invalid', 'Not a group or channel');
+    if ($m['role'] !== 'admin') fail('forbidden', 'Only admins can ban');
+    if ($uid === (int)$me['uid']) fail('invalid', 'Cannot ban yourself');
+    $tm = my_membership($cid, $uid);
+    if (!$tm) fail('not_found', 'Not a member');
+    if ($tm['role'] === 'admin') fail('forbidden', 'Cannot ban another admin');
+    $ban = pint('banned') === 1;
+    db()->prepare("UPDATE chat_members SET role = ? WHERE chat_id = ? AND user_id = ?")
+        ->execute([$ban ? 'banned' : 'member', $cid, $uid]);
+    $u = user_by_id($uid);
+    if ($chat['type'] === 'group') {
+        db()->prepare("INSERT INTO messages (chat_id, sender_id, sender_name, type, text, created_at)
+                       VALUES (?,NULL,'','system',?,UTC_TIMESTAMP())")
+            ->execute([$cid, ($u ? trim($u['first_name']) : 'Member') . ($ban ? ' was banned' : ' was unbanned')]);
+    }
+    emit($uid, 'chat_updated', ['chat_id' => $cid, 'banned' => $ban], $cid, (int)$me['uid']);
+    ok(['banned' => $ban]);
+}
+
+case 'banned_list': {
+    $me = me(); $cid = pint('chat_id'); $m = require_member($cid); $chat = chat_of($cid);
+    if (!$chat) fail('not_found', 'Chat not found');
+    if ($m['role'] !== 'admin') fail('forbidden', 'Only admins can see this');
+    $st = db()->prepare("SELECT u.*, u.id AS uid FROM chat_members cm JOIN users u ON u.id = cm.user_id
+                          WHERE cm.chat_id = ? AND cm.role = 'banned'");
+    $st->execute([$cid]);
+    ok(['banned' => array_map(fn($u) => user_public($u), $st->fetchAll())]);
+}
+
+case 'links_list': {
+    // multiple invite links with usage/expiry, Telegram-style
+    $me = me(); $cid = pint('chat_id'); $m = require_member($cid); $chat = chat_of($cid);
+    if (!$chat || !in_array($chat['type'], ['group','channel'], true)) fail('invalid', 'Not a group or channel');
+    $st = db()->prepare('SELECT * FROM invite_links WHERE chat_id = ? ORDER BY id DESC LIMIT 50');
+    $st->execute([$cid]);
+    $out = [];
+    foreach ($st->fetchAll() as $l) {
+        $creator = user_by_id((int)$l['creator_id']);
+        $out[] = [
+            'id' => (int)$l['id'], 'code' => (string)$l['code'], 'name' => (string)$l['name'],
+            'link' => BASE_URL . 'invite/' . $l['code'],
+            'creator' => $creator ? trim($creator['first_name'] . ' ' . $creator['last_name']) : '',
+            'expires_ts' => ts($l['expires_at']), 'usage_limit' => (int)$l['usage_limit'],
+            'uses' => (int)$l['uses'], 'revoked' => (int)$l['revoked'] === 1,
+            'ts' => ts($l['created_at']),
+        ];
+    }
+    ok(['links' => $out]);
+}
+
+case 'link_create': {
+    $me = me(); $cid = pint('chat_id'); $m = require_member($cid); $chat = chat_of($cid);
+    if (!$chat || !in_array($chat['type'], ['group','channel'], true)) fail('invalid', 'Not a group or channel');
+    if ($m['role'] !== 'admin') fail('forbidden', 'Only admins can create links');
+    $name = mb_substr(trim((string)(p('name') ?? '')), 0, 64);
+    $days = max(0, min(365, pint('expires_days')));
+    $limit = max(0, min(100000, pint('usage_limit')));
+    $code = substr(bin2hex(random_bytes(6)), 0, 10);
+    db()->prepare('INSERT INTO invite_links (chat_id, code, name, creator_id, expires_at, usage_limit, created_at)
+                   VALUES (?,?,?,?,?,?,UTC_TIMESTAMP())')
+        ->execute([$cid, $code, $name, $me['uid'],
+                   $days > 0 ? sqlts(time() + $days * 86400) : null, $limit]);
+    ok(['code' => $code, 'link' => BASE_URL . 'invite/' . $code]);
+}
+
+case 'link_revoke': {
+    $me = me(); $cid = pint('chat_id'); $m = require_member($cid);
+    if ($m['role'] !== 'admin') fail('forbidden', 'Only admins can revoke links');
+    $lid = pint('link_id');
+    db()->prepare('UPDATE invite_links SET revoked = 1 WHERE id = ? AND chat_id = ?')->execute([$lid, $cid]);
+    ok(['revoked' => $lid]);
+}
+
+case 'requests_list': {
+    $me = me(); $cid = pint('chat_id'); $m = require_member($cid);
+    if ($m['role'] !== 'admin') fail('forbidden', 'Only admins can review requests');
+    $st = db()->prepare('SELECT u.*, u.id AS uid, jr.created_at AS req_at FROM join_requests jr
+                          JOIN users u ON u.id = jr.user_id WHERE jr.chat_id = ? ORDER BY jr.id DESC LIMIT 100');
+    $st->execute([$cid]);
+    $out = [];
+    foreach ($st->fetchAll() as $r) {
+        $u = user_public($r);
+        $u['req_ts'] = ts($r['req_at']);
+        $out[] = $u;
+    }
+    ok(['requests' => $out]);
+}
+
+case 'request_decide': {
+    $me = me(); $cid = pint('chat_id'); $m = require_member($cid); $chat = chat_of($cid);
+    if (!$chat) fail('not_found', 'Chat not found');
+    if ($m['role'] !== 'admin') fail('forbidden', 'Only admins can decide');
+    $uid = pint('user_id');
+    $approve = pint('approve') === 1;
+    db()->prepare('DELETE FROM join_requests WHERE chat_id = ? AND user_id = ?')->execute([$cid, $uid]);
+    if ($approve) {
+        db()->prepare("INSERT INTO chat_members (chat_id, user_id, role, joined_at) VALUES (?,?,'member',UTC_TIMESTAMP())")
+            ->execute([$cid, $uid]);
+        $u = user_by_id($uid);
+        if ($chat['type'] === 'group') {
+            db()->prepare("INSERT INTO messages (chat_id, sender_id, sender_name, type, text, created_at)
+                           VALUES (?,NULL,'','system',?,UTC_TIMESTAMP())")
+                ->execute([$cid, ($u ? trim($u['first_name']) : 'New member') . ' joined the group']);
+        }
+        emit(chat_member_ids($cid), 'chat_updated', ['chat_id' => $cid], $cid, (int)$me['uid']);
+        emit($uid, 'chat_created', ['chat_id' => $cid], $cid);
+    }
+    emit($uid, 'join_request_result', ['chat_id' => $cid, 'approved' => $approve, 'chat_title' => (string)$chat['title']], $cid, (int)$me['uid']);
+    ok(['approved' => $approve]);
+}
+
+case 'set_hidden': {
+    // hide a chat from the main list (see it again via Settings → Hidden chats)
+    $me = me(); $cid = pint('chat_id'); require_member($cid);
+    db()->prepare('UPDATE chat_members SET hidden = ? WHERE chat_id = ? AND user_id = ?')
+        ->execute([pint('hidden') === 1 ? 1 : 0, $cid, $me['uid']]);
+    ok(['hidden' => pint('hidden') === 1]);
+}
+
+case 'hidden_list': {
+    $me = me();
+    $st = db()->prepare('SELECT c.* FROM chat_members m JOIN chats c ON c.id = m.chat_id
+                          WHERE m.user_id = ? AND m.hidden = 1 ORDER BY COALESCE(c.last_message_at, c.created_at) DESC');
+    $st->execute([$me['uid']]);
+    $out = [];
+    foreach ($st->fetchAll() as $c) {
+        $mm = my_membership((int)$c['id'], (int)$me['uid']);
+        if ($mm) $out[] = chat_public($c, $mm, (int)$me['uid']);
+    }
+    ok(['chats' => $out]);
+}
+
+case 'chat_stats': {
+    // group/channel statistics: member growth, message activity, top posters, channel views
+    $me = me(); $cid = pint('chat_id'); $m = require_member($cid); $chat = chat_of($cid);
+    if (!$chat || !in_array($chat['type'], ['group','channel'], true)) fail('invalid', 'Not a group or channel');
+    if ($m['role'] !== 'admin') fail('forbidden', 'Only admins can see statistics');
+    $growth = [];
+    $st = db()->prepare("SELECT DATE(joined_at) d, COUNT(*) c FROM chat_members
+                          WHERE chat_id = ? AND joined_at >= UTC_TIMESTAMP() - INTERVAL 30 DAY GROUP BY DATE(joined_at) ORDER BY d");
+    $st->execute([$cid]);
+    foreach ($st->fetchAll() as $r) $growth[] = ['day' => $r['d'], 'count' => (int)$r['c']];
+    $activity = [];
+    $st = db()->prepare("SELECT DATE(created_at) d, COUNT(*) c FROM messages
+                          WHERE chat_id = ? AND deleted = 0 AND created_at >= UTC_TIMESTAMP() - INTERVAL 30 DAY GROUP BY DATE(created_at) ORDER BY d");
+    $st->execute([$cid]);
+    foreach ($st->fetchAll() as $r) $activity[] = ['day' => $r['d'], 'count' => (int)$r['c']];
+    $top = [];
+    $st = db()->prepare('SELECT sender_name n, COUNT(*) c FROM messages
+                          WHERE chat_id = ? AND deleted = 0 AND sender_id IS NOT NULL
+                          GROUP BY sender_id, sender_name ORDER BY c DESC LIMIT 10');
+    $st->execute([$cid]);
+    foreach ($st->fetchAll() as $r) $top[] = ['name' => (string)$r['n'], 'count' => (int)$r['c']];
+    $views = 0;
+    if ($chat['type'] === 'channel') {
+        $st = db()->prepare('SELECT COALESCE(SUM(v.c),0) t FROM (SELECT COUNT(*) c FROM message_views
+                              WHERE message_id IN (SELECT id FROM messages WHERE chat_id = ?)) v');
+        $st->execute([$cid]);
+        $views = (int)$st->fetch()['t'];
+    }
+    $st = db()->prepare('SELECT COUNT(*) c FROM chat_members WHERE chat_id = ?');
+    $st->execute([$cid]);
+    $members = (int)$st->fetch()['c'];
+    $st = db()->prepare('SELECT COUNT(*) c FROM messages WHERE chat_id = ? AND deleted = 0');
+    $st->execute([$cid]);
+    ok(['stats' => ['members' => $members, 'messages' => (int)$st->fetch()['c'], 'views' => $views,
+                    'growth' => $growth, 'activity' => $activity, 'top' => $top,
+                    'type' => $chat['type']]]);
 }
 
 default: fail('unknown_action', 'Unknown chats action');

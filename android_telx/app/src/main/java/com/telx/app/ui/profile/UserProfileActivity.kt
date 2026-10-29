@@ -132,9 +132,15 @@ class UserProfileActivity : AppCompatActivity() {
     private fun bind() {
         val u = user ?: return
         avatar.bindUser(u, showDot = true)
-        name.text = u.name
-        status.text = Helpers.lastSeenText(u.online, u.lastTs)
-        status.setTextColor(if (u.online) 0xFF3390EC.toInt() else 0xFF8A8A8E.toInt())
+        // v6: verified ✔ / scam badges (Telegram-style moderation labels)
+        name.text = if (u.verified) "${u.name} ✔" else u.name
+        if (u.scam) {
+            status.text = "⚠ Scam account"
+            status.setTextColor(0xFFF2743B.toInt())
+        } else {
+            status.text = Helpers.lastSeenText(u.online, u.lastTs)
+            status.setTextColor(if (u.online) 0xFF3390EC.toInt() else 0xFF8A8A8E.toInt())
+        }
         username.text = if (u.username.isNotEmpty()) "@${u.username}" else "No username"
         if (u.username.isNotEmpty()) username.setCompoundDrawablesWithIntrinsicBounds(0, 0, R.drawable.ic_qr, 0)
         bio.text = if (u.bio.isEmpty()) "No bio yet" else u.bio
@@ -151,7 +157,27 @@ class UserProfileActivity : AppCompatActivity() {
             btnContact.visibility = View.VISIBLE
             btnBlock.visibility = View.VISIBLE
             btnEdit.visibility = View.GONE
+            // v6: long-press the name to report this user
+            name.setOnLongClickListener { reportUser(); true }
         }
+    }
+
+    /** v6: report a user for spam/scam (5 distinct reports auto-flag as Scam). */
+    private fun reportUser() {
+        val u = user ?: return
+        val reasons = arrayOf("Spam", "Fake account", "Impersonation", "Violence", "Other")
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Report ${u.name}")
+            .setItems(reasons) { _, which ->
+                ui.launch {
+                    try {
+                        withContext(Dispatchers.IO) { Api.report("user", u.id, reasons[which]) }
+                        Helpers.toast(this@UserProfileActivity, "Report sent. Thank you.")
+                    } catch (e: Exception) { Helpers.toast(this@UserProfileActivity, "Report failed") }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     override fun onResume() {

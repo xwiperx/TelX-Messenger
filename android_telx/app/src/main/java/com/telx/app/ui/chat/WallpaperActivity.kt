@@ -114,6 +114,28 @@ class WallpaperActivity : AppCompatActivity() {
             patternsRow.addView(v)
         }
 
+        // v6: animated gradient tile
+        run {
+            val v = TextView(this)
+            val size = Helpers.dp(this, 84)
+            val lp = android.widget.LinearLayout.LayoutParams(size, size)
+            lp.marginEnd = Helpers.dp(this, 12)
+            v.layoutParams = lp
+            v.text = "ANIM"
+            v.gravity = android.view.Gravity.CENTER
+            v.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 11f)
+            v.setTextColor(0xFFFFFFFF.toInt())
+            v.setBackgroundResource(R.drawable.chat_bg_animated)
+            (v.background as? android.graphics.drawable.AnimationDrawable)?.start()
+            v.setOnClickListener {
+                Prefs.wallpaper = "animated"
+                applyPreview()
+                WallpaperHelper.version++
+                Helpers.toast(this, "Animated wallpaper enabled")
+            }
+            patternsRow.addView(v)
+        }
+
         findViewById<TextView>(R.id.btn_reset_wallpaper).setOnClickListener {
             Prefs.wallpaper = null
             applyPreview()

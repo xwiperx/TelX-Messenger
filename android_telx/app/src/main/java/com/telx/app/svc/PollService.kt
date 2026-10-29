@@ -76,10 +76,29 @@ class PollService : android.app.Service(), Events.Listener {
             if (e.data.optInt("unread_total", 0) == 0) clearAll()
             return
         }
+        // v6: login alert — new device signed in to this account
+        if (e.type == "login_alert") {
+            val device = e.data.optString("device", "Unknown device")
+            val ip = e.data.optString("ip", "")
+            postGeneric(990001, "New login on TelX",
+                "Device: $device" + (if (ip.isNotEmpty()) " · IP: $ip" else ""))
+            return
+        }
+        // v6: someone asked to join my group/channel (admin)
+        if (e.type == "join_request") {
+            val u = e.data.optJSONObject("user")
+            postGeneric(990002, "Join request",
+                "${u?.optString("name") ?: "A user"} wants to join")
+            return
+        }
         if (e.type != "message_new") return
         val chatId = e.data.optInt("chat_id")
         val msg = e.data.optJSONObject("message") ?: return
         if (chatId == 0 || chatId == currentOpenChat) return
+        // v6: silent messages (sent without sound) — no notification
+        if (msg.optBoolean("silent")) return
+        // v6: comment-thread replies don't notify the whole channel
+        if (msg.has("comment_to") && !msg.isNull("comment_to")) return
         if (MuteCache.isMuted(chatId)) return
 
         val sender = msg.optString("sender_name", "New message")
@@ -92,6 +111,28 @@ class PollService : android.app.Service(), Events.Listener {
         }
         if (text.isEmpty()) return
         postNotification(chatId, sender, text)
+    }
+
+    /** v6: account/system-style notification (login alerts, join requests). */
+    private fun postGeneric(notifId: Int, title: String, text: String) {
+        val granted = if (Build.VERSION.SDK_INT >= 33)
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        else true
+        if (!granted) return
+        val open = Intent(this, com.telx.app.ui.MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val pOpen = PendingIntent.getActivity(this, notifId, open,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val n = NotificationCompat.Builder(this, App.CH_MESSAGES)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setContentIntent(pOpen)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+        try { NotificationManagerCompat.from(this).notify(notifId, n) } catch (_: SecurityException) {}
     }
 
     private fun postNotification(chatId: Int, sender: String, text: String) {

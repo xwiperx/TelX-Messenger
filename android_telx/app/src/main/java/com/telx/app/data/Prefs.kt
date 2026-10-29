@@ -97,6 +97,71 @@ object Prefs {
         get() = sp.getString("accounts", "[]") ?: "[]"
         set(v) = sp.edit().putString("accounts", v).apply()
 
+    // ---------------- v6 additions ----------------
+
+    /** open links in the internal browser instead of the system one */
+    var useInAppBrowser: Boolean
+        get() = sp.getBoolean("use_in_app_browser", true)
+        set(v) = sp.edit().putBoolean("use_in_app_browser", v).apply()
+
+    /** per-chat app-lock: JSON set of chat ids locked with the app PIN */
+    var lockedChats: String
+        get() = sp.getString("locked_chats", "[]") ?: "[]"
+        set(v) = sp.edit().putString("locked_chats", v).apply()
+
+    /** custom app accent color ("#RRGGBB", "" = default Telegram blue) */
+    var customAccent: String
+        get() = sp.getString("custom_accent", "") ?: ""
+        set(v) = sp.edit().putString("custom_accent", v).apply()
+
+    /** full custom theme JSON: {accent, bubble, bubbleTheirs, bgLight, bgDark, nav} */
+    var customTheme: String
+        get() = sp.getString("custom_theme", "") ?: ""
+        set(v) = sp.edit().putString("custom_theme", v).apply()
+
+    /** chat wallpaper: "animated" = moving gradient (v6) */
+    var wallpaperAnimated: Boolean
+        get() = sp.getBoolean("wallpaper_animated", false)
+        set(v) = sp.edit().putBoolean("wallpaper_animated", v).apply()
+
+    /** selected launcher icon alias (default | dark | teal) */
+    var launcherIcon: String
+        get() = sp.getString("launcher_icon", "default")
+        set(v) = sp.edit().putString("launcher_icon", v).apply()
+
+    /** Material You dynamic colors (Android 12+), overrides custom accent */
+    var materialYou: Boolean
+        get() = sp.getBoolean("material_you", true)
+        set(v) = sp.edit().putBoolean("material_you", v).apply()
+
+    /** last version the update dialog was shown for */
+    var updateDismissedVersion: String
+        get() = sp.getString("update_dismissed", "") ?: ""
+        set(v) = sp.edit().putString("update_dismissed", v).apply()
+
+    /** recent chats cache for the home-screen widget — JSON [{id,name}] */
+    var recentChats: String
+        get() = sp.getString("recent_chats", "[]") ?: "[]"
+        set(v) = sp.edit().putString("recent_chats", v).apply()
+
+    fun isChatLocked(chatId: Int): Boolean {
+        return try {
+            val arr = org.json.JSONArray(lockedChats)
+            (0 until arr.length()).any { arr.optInt(it) == chatId }
+        } catch (_: Exception) { false }
+    }
+
+    fun setChatLocked(chatId: Int, locked: Boolean) {
+        try {
+            val arr = org.json.JSONArray(lockedChats)
+            val cur = (0 until arr.length()).map { arr.optInt(it) }.filter { it != chatId }.toMutableList()
+            if (locked) cur.add(chatId)
+            val out = org.json.JSONArray()
+            cur.forEach { out.put(it) }
+            lockedChats = out.toString()
+        } catch (_: Exception) {}
+    }
+
     fun clearSession() {
         token = ""
         sinceId = 0

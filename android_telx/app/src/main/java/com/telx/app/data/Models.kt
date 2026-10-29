@@ -27,6 +27,10 @@ class User(j: JSONObject) {
     val viewedTs: Long = j.optLong("viewed_ts", 0)
     val phone: String = j.optString("phone", "")
     val privacyLastSeen: Int = j.optInt("privacy_last_seen", 0)
+    // v6 badges + self-destruct
+    val verified: Boolean = j.optBoolean("verified")
+    val scam: Boolean = j.optBoolean("scam")
+    val selfDestructMonths: Int = j.optInt("self_destruct_months", 0)
 
     companion object {
         fun parseArray(arr: JSONArray?): List<User> {
@@ -71,6 +75,14 @@ class Message(j: JSONObject) {
     val edited: Boolean = j.optBoolean("edited")
     val scheduled: Boolean = j.optBoolean("scheduled")
     val enc: Boolean = j.optBoolean("enc")
+    // v6: albums / silent / anonymous / effects / multi-pin / comments
+    val groupId: Long? = if (j.has("group_id") && !j.isNull("group_id")) j.optLong("group_id") else null
+    val silent: Boolean = j.optBoolean("silent")
+    val anon: Boolean = j.optBoolean("anon")
+    val pinned: Boolean = j.optBoolean("pinned")
+    val effect: String? = j.optStringOrNull("effect")
+    val commentTo: Int? = if (j.has("comment_to") && !j.isNull("comment_to")) j.getInt("comment_to") else null
+    val commentCount: Int = j.optInt("comment_count", 0)
     val ts: Long = j.optLong("ts", 0)
     val views: Int = j.optInt("views", 0)
     val mediaJson: JSONObject? = if (j.has("media_json") && !j.isNull("media_json")) j.getJSONObject("media_json") else null
@@ -125,10 +137,18 @@ class Chat(j: JSONObject) {
     val peerLastDelivered: Int = j.optInt("peer_last_delivered", 0)
     val myRole: String = j.optString("my_role", "")
     val typing: Boolean = j.optBoolean("typing")
+    // v6 group/channel settings
+    val slowMode: Int = j.optInt("slow_mode", 0)
+    val joinRequest: Boolean = j.optBoolean("join_request")
+    val hidden: Boolean = j.optBoolean("hidden")
+    val perms: JSONObject? = if (j.has("perms") && !j.isNull("perms")) j.getJSONObject("perms") else null
 
     val isChannel: Boolean get() = type == "channel"
     val isGroup: Boolean get() = type == "group"
     val isAdmin: Boolean get() = (isChannel && myRole == "admin") || (isGroup && myRole == "admin")
+
+    /** member permission helper (default: allowed) */
+    fun permAllows(right: String): Boolean = perms?.optInt(right, 1) == 1 || isAdmin
 
     val displayName: String
         get() = when (type) {
@@ -139,6 +159,14 @@ class Chat(j: JSONObject) {
         }
     val displayAvatar: String? get() = if (type == "group" || type == "channel") avatar else peer?.avatar ?: avatar
     val isSaved get() = type == "saved"
+
+    companion object {
+        fun parseArray(arr: JSONArray?): ArrayList<Chat> {
+            val out = ArrayList<Chat>()
+            if (arr != null) for (i in 0 until arr.length()) out.add(Chat(arr.getJSONObject(i)))
+            return out
+        }
+    }
 }
 
 class Story(j: JSONObject) {
@@ -208,4 +236,44 @@ class StickerPack(j: JSONObject) {
     val stickers: List<String> = j.optJSONArray("stickers")?.let { arr ->
         (0 until arr.length()).map { arr.optString(it) }
     } ?: emptyList()
+}
+
+/** v6: one admin-managed invite link (multiple links per chat). */
+class InviteLink(j: JSONObject) {
+    val id: Int = j.optInt("id")
+    val code: String = j.optString("code")
+    val name: String = j.optString("name", "")
+    val link: String = j.optString("link")
+    val creator: String = j.optString("creator", "")
+    val expiresTs: Long = j.optLong("expires_ts", 0)
+    val usageLimit: Int = j.optInt("usage_limit", 0)
+    val uses: Int = j.optInt("uses", 0)
+    val revoked: Boolean = j.optBoolean("revoked")
+
+    companion object {
+        fun parseArray(arr: JSONArray?): ArrayList<InviteLink> {
+            val out = ArrayList<InviteLink>()
+            if (arr != null) for (i in 0 until arr.length()) out.add(InviteLink(arr.getJSONObject(i)))
+            return out
+        }
+    }
+}
+
+/** v6: chat/group statistics (growth / activity / top posters). */
+class ChatStats(j: JSONObject) {
+    val members: Int = j.optInt("members", 0)
+    val messages: Int = j.optInt("messages", 0)
+    val views: Int = j.optInt("views", 0)
+    val type: String = j.optString("type", "group")
+    val growth: List<Pair<String, Int>> = parseSeries(j.optJSONArray("growth"))
+    val activity: List<Pair<String, Int>> = parseSeries(j.optJSONArray("activity"))
+    val top: List<Pair<String, Int>> = j.optJSONArray("top")?.let { arr ->
+        (0 until arr.length()).map { val o = arr.getJSONObject(it); o.optString("name") to o.optInt("count") }
+    } ?: emptyList()
+
+    companion object {
+        private fun parseSeries(arr: JSONArray?): List<Pair<String, Int>> = arr?.let { a ->
+            (0 until a.length()).map { val o = a.getJSONObject(it); o.optString("day") to o.optInt("count") }
+        } ?: emptyList()
+    }
 }

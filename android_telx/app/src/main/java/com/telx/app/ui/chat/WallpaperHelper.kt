@@ -86,6 +86,11 @@ object WallpaperHelper {
         root.setBackgroundResource(R.drawable.chat_bg_default)
         if (w.isNullOrEmpty()) { applyDim(root, dim); return }
         when {
+            // v6: animated gradient wallpaper
+            w == "animated" -> {
+                root.setBackgroundResource(R.drawable.chat_bg_animated)
+                (root.background as? android.graphics.drawable.AnimationDrawable)?.start()
+            }
             w.startsWith("pattern:") -> {
                 val res = when (w.removePrefix("pattern:")) {
                     "1" -> R.drawable.chat_bg_dots

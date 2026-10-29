@@ -65,6 +65,23 @@ class SettingsFragment : Fragment() {
         bindRow(v, R.id.row_wallpaper) {
             startActivity(Intent(requireContext(), com.telx.app.ui.chat.WallpaperActivity::class.java))
         }
+        // v6 rows
+        bindRow(v, R.id.row_theme_editor) { startActivity(Intent(requireContext(), ThemeEditorActivity::class.java)) }
+        bindRow(v, R.id.row_hidden) { startActivity(Intent(requireContext(), HiddenChatsActivity::class.java)) }
+        bindRow(v, R.id.row_storage) { startActivity(Intent(requireContext(), StorageActivity::class.java)) }
+        bindRow(v, R.id.row_icons) { showIconPicker() }
+        bindRow(v, R.id.row_selfdestruct) { showSelfDestructDialog() }
+        bindRow(v, R.id.row_browser) {
+            Prefs.useInAppBrowser = !Prefs.useInAppBrowser
+            Helpers.toast(context, if (Prefs.useInAppBrowser) "Links now open inside TelX"
+                else "Links now open in the system browser")
+        }
+        bindRow(v, R.id.row_materialyou) {
+            Prefs.materialYou = !Prefs.materialYou
+            (activity as? MainActivity)?.applyTheme()
+            Helpers.toast(context, "Material You " +
+                    (if (Prefs.materialYou) "enabled (Android 12+)" else "disabled"))
+        }
         bindRow(v, R.id.row_backup) { startActivity(Intent(requireContext(), BackupActivity::class.java)) }
         bindRow(v, R.id.row_2fa) { show2faDialog() }
         bindRow(v, R.id.row_sessions) { startActivity(Intent(requireContext(), SessionsActivity::class.java)) }
@@ -77,6 +94,49 @@ class SettingsFragment : Fragment() {
 
     private fun bindRow(v: View, id: Int, action: () -> Unit) {
         v.findViewById<View>(id).setOnClickListener { action() }
+    }
+
+    /** v6: launcher icon picker — switch between the shipped icon variants. */
+    private fun showIconPicker() {
+        val labels = arrayOf("Telegram Blue (default)", "Dark Night", "Teal")
+        val keys = arrayOf("default", "dark", "teal")
+        val aliases = arrayOf("com.telx.app.AliasDefault", "com.telx.app.AliasDark", "com.telx.app.AliasTeal")
+        val pm = requireContext().packageManager
+        AlertDialog.Builder(requireContext())
+            .setTitle("App icon")
+            .setSingleChoiceItems(labels, keys.indexOf(Prefs.launcherIcon)) { d, which ->
+                d.dismiss()
+                for ((i, alias) in aliases.withIndex()) {
+                    pm.setComponentEnabledSetting(
+                        android.content.ComponentName(requireContext(), alias),
+                        if (i == which) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+                        else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                        android.content.pm.PackageManager.DONT_KILL_APP)
+                }
+                Prefs.launcherIcon = keys[which]
+                Helpers.toast(context, "Icon changed — the launcher may take a moment to refresh")
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** v6: account self-destruct timer (like Telegram's inactive account deletion). */
+    private fun showSelfDestructDialog() {
+        val labels = arrayOf("Off", "6 months", "12 months", "18 months")
+        val months = intArrayOf(0, 6, 12, 18)
+        AlertDialog.Builder(requireContext())
+            .setTitle("Delete my account if inactive for")
+            .setSingleChoiceItems(labels, -1) { d, which ->
+                d.dismiss()
+                ui.launch {
+                    try {
+                        withContext(Dispatchers.IO) { Api.setSelfDestruct(months[which]) }
+                        Helpers.toast(context, if (which == 0) "Self-destruct disabled" else "Set to ${labels[which]}")
+                    } catch (e: Exception) { Helpers.toast(context, "Failed") }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun refreshHeader() {

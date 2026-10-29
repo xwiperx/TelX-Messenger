@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@color/window_bg">
+    <androidx.appcompat.widget.Toolbar android:id="@+id/browser_toolbar"
+        android:layout_width="match_parent" android:layout_height="?attr/actionBarSize"
+        android:background="@color/toolbar_bg" android:elevation="6dp">
+        <androidx.appcompat.widget.AppCompatTextView android:id="@+id/browser_host"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textSize="17sp" android:textStyle="bold" android:textColor="@color/text_primary"
+            android:maxLines="1" android:ellipsize="end" />
+        <ImageView android:id="@+id/browser_refresh" android:layout_width="40dp" android:layout_height="40dp"
+            android:src="@drawable/ic_volume" app:tint="@color/text_secondary" android:padding="10dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless" android:contentDescription="refresh" />
+        <ImageView android:id="@+id/browser_open_externally" android:layout_width="40dp" android:layout_height="40dp"
+            android:src="@drawable/ic_share" app:tint="@color/text_secondary" android:padding="10dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless" android:contentDescription="open externally" />
+    </androidx.appcompat.widget.Toolbar>
+    <android.widget.ProgressBar android:id="@+id/browser_progress" style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent" android:layout_height="4dp" android:max="100"
+        android:progressTint="@color/tg_blue" android:visibility="gone" />
+    <WebView android:id="@+id/browser_web" android:layout_width="match_parent" android:layout_height="match_parent" />
+</LinearLayout>

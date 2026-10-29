@@ -90,7 +90,7 @@ object FileDownloader {
     fun open(ctx: Context, m: Message, f: File) {
         try {
             val name = m.mediaName.ifEmpty { f.name }
-            val uri = androidx.core.content.FileProvider.getUriForFile(ctx, ctx.packageName + ".fileprovider", f)
+            val uri = androidx.core.content.FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
             val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
                 .setDataAndType(uri, Helpers.mimeFor(name))
                 .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)

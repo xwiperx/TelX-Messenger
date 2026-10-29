@@ -22,6 +22,10 @@ class App : Application() {
         super.onCreate()
         instance = this
         createChannels()
+        // v6: Material You dynamic colors on Android 12+ (unless disabled in settings)
+        if (com.telx.app.data.Prefs.materialYou) {
+            com.google.android.material.color.DynamicColors.applyToActivitiesIfAvailable(this)
+        }
         // track foreground state so the poller can adapt its cadence
         registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
             private var acts = 0

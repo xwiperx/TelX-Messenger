@@ -5,6 +5,25 @@ require __DIR__ . '/../config.php';
 
 $action = p('action') ?? '';
 
+/** v6: login alert — notify all other active sessions of this user about a new login. */
+function notify_new_login(int $uid, string $device, int $newSid): void {
+    $st = db()->prepare('SELECT id, ip FROM sessions WHERE user_id = ? AND id <> ? ORDER BY last_active DESC LIMIT 10');
+    $st->execute([$uid, $newSid]);
+    $others = $st->fetchAll();
+    if (!$others) return;
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    $newer = db()->prepare('SELECT COUNT(*) c FROM sessions WHERE user_id = ? AND id <> ? AND last_active >= UTC_TIMESTAMP() - INTERVAL 90 DAY');
+    $newer->execute([$uid, $newSid]);
+    if ((int)$newer->fetch()['c'] > 0 || true) {
+        emit($uid, 'login_alert', [
+            'device' => $device ?: 'Unknown device',
+            'ip' => $ip,
+            'ts' => time(),
+            'message' => "New login on {$device}" . ($ip !== '' ? " ($ip)" : ''),
+        ]);
+    }
+}
+
 switch ($action) {
 
 case 'check_username': {
@@ -51,6 +70,7 @@ case 'login': {
         ok(['needs2fa' => true]);
     }
     $s = create_session((int)$u['uid'], $device);
+    notify_new_login((int)$u['uid'], (string)$device, (int)$s['id']);
     ok(['token' => $s['token'], 'user' => user_public($u, true)]);
 }
 
@@ -64,7 +84,17 @@ case 'verify2fa': {
     if ((int)$u['twofa_enabled'] !== 1) fail('invalid', '2FA is not enabled');
     if (!check_code((int)$u['uid'], 'twofa', $code)) fail('code', 'Invalid or expired code');
     $s = create_session((int)$u['uid'], $device);
+    notify_new_login((int)$u['uid'], (string)$device, (int)$s['id']);
     ok(['token' => $s['token'], 'user' => user_public($u, true)]);
+}
+
+case 'set_self_destruct': {
+    // v6: delete my account automatically after N months of inactivity (0 = off)
+    $me = me();
+    $months = pint('months');
+    if (!in_array($months, [0, 6, 12, 18], true)) fail('invalid', 'Allowed: 0, 6, 12 or 18 months');
+    db()->prepare('UPDATE users SET self_destruct_months = ? WHERE id = ?')->execute([$months, $me['uid']]);
+    ok(['self_destruct_months' => $months]);
 }
 
 case 'logout': {

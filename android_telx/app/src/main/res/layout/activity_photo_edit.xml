@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="#1B1D22">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:background="#22252B" android:elevation="6dp">
+        <ImageView android:id="@+id/pe_back" android:layout_width="42dp" android:layout_height="42dp"
+            android:src="@drawable/ic_close" app:tint="#FFFFFF" android:padding="10dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless" android:contentDescription="close" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:text="Edit photo" android:textSize="17sp" android:textStyle="bold" android:textColor="#FFFFFF" />
+        <ImageView android:id="@+id/pe_crop" android:layout_width="42dp" android:layout_height="42dp"
+            android:src="@drawable/ic_cut" app:tint="#FFFFFF" android:padding="10dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless" android:contentDescription="crop" />
+        <ImageView android:id="@+id/pe_save" android:layout_width="42dp" android:layout_height="42dp"
+            android:src="@drawable/ic_done" app:tint="#FFFFFF" android:padding="10dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless" android:contentDescription="save" />
+    </LinearLayout>
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+        <ImageView android:id="@+id/pe_image" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:scaleType="fitCenter" android:contentDescription="photo" />
+        <ProgressBar android:id="@+id/pe_progress" android:layout_width="40dp" android:layout_height="40dp"
+            android:layout_gravity="center" android:visibility="gone" />
+    </FrameLayout>
+    <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:scrollbars="none" android:background="#22252B">
+        <LinearLayout android:id="@+id/pe_actions" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:padding="10dp" />
+    </HorizontalScrollView>
+    <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:scrollbars="none" android:background="#22252B">
+        <LinearLayout android:id="@+id/pe_filters" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:padding="10dp" />
+    </HorizontalScrollView>
+</LinearLayout>

@@ -27,15 +27,45 @@
         tools:targetApi="34">
 
         <activity
-            android:name=".ui.AuthActivity"
+            android:name="com.telx.app.ui.AuthActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.TelX.NoActionBar">
+            android:theme="@style/Theme.TelX.NoActionBar" />
+
+        <!-- v6: selectable launcher icons (Settings → App Icon) -->
+        <activity-alias
+            android:name="com.telx.app.AliasDefault"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:targetActivity="com.telx.app.ui.AuthActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name="com.telx.app.AliasDark"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/ic_launcher_dark"
+            android:targetActivity="com.telx.app.ui.AuthActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name="com.telx.app.AliasTeal"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/ic_launcher_teal"
+            android:targetActivity="com.telx.app.ui.AuthActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <activity
             android:name=".ui.MainActivity"
@@ -73,6 +103,27 @@
             android:name=".ui.chat.WallpaperActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.TelX.NoActionBar" />
+
+        <!-- v6 activities -->
+        <activity android:name=".ui.common.BrowserActivity" android:exported="false"
+            android:theme="@style/Theme.TelX.NoActionBar" android:configChanges="orientation|screenSize" />
+        <activity android:name=".ui.chat.CommentsActivity" android:exported="false"
+            android:windowSoftInputMode="adjustResize" android:theme="@style/Theme.TelX.NoActionBar" />
+        <activity android:name=".ui.chat.PhotoEditActivity" android:exported="false"
+            android:theme="@style/Theme.TelX.NoActionBar" />
+        <activity android:name=".ui.chat.VideoTrimActivity" android:exported="false"
+            android:theme="@style/Theme.TelX.NoActionBar" />
+        <activity android:name=".ui.chat.VideoPlayerActivity" android:exported="false"
+            android:supportsPictureInPicture="true" android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout"
+            android:theme="@style/Theme.TelX.NoActionBar" />
+        <activity android:name=".ui.settings.StatsActivity" android:exported="false"
+            android:theme="@style/Theme.TelX.NoActionBar" />
+        <activity android:name=".ui.settings.StorageActivity" android:exported="false"
+            android:theme="@style/Theme.TelX.NoActionBar" />
+        <activity android:name=".ui.settings.HiddenChatsActivity" android:exported="false"
+            android:theme="@style/Theme.TelX.NoActionBar" />
+        <activity android:name=".ui.settings.ThemeEditorActivity" android:exported="false"
             android:theme="@style/Theme.TelX.NoActionBar" />
 
         <activity
@@ -134,6 +185,18 @@
         <receiver
             android:name=".svc.QuickReplyReceiver"
             android:exported="false" />
+
+        <!-- v6: home-screen chats widget -->
+        <receiver
+            android:name=".widget.ChatsWidget"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/chats_widget_info" />
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:padding="20dp">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="Name (optional)" android:textSize="13sp" android:textColor="@color/text_secondary" />
+    <EditText android:id="@+id/et_link_name" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:hint="e.g. Friends" android:textSize="15sp" android:padding="12dp" android:layout_marginTop="6dp"
+        android:background="@drawable/bg_input" android:inputType="text"
+        android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="Expires after days (0 = never)" android:textSize="13sp"
+        android:textColor="@color/text_secondary" android:paddingTop="14dp" />
+    <EditText android:id="@+id/et_link_days" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:hint="0" android:textSize="15sp" android:padding="12dp" android:layout_marginTop="6dp"
+        android:background="@drawable/bg_input" android:inputType="number"
+        android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="Max members (0 = unlimited)" android:textSize="13sp"
+        android:textColor="@color/text_secondary" android:paddingTop="14dp" />
+    <EditText android:id="@+id/et_link_limit" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:hint="0" android:textSize="15sp" android:padding="12dp" android:layout_marginTop="6dp"
+        android:background="@drawable/bg_input" android:inputType="number"
+        android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
+</LinearLayout>

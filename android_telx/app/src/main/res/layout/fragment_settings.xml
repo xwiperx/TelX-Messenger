@@ -79,6 +79,104 @@
             android:text="Appearance (Dark Mode)" android:textSize="16sp" android:textColor="@color/text_primary" />
     </LinearLayout>
     <LinearLayout
+        android:id="@+id/row_theme_editor"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_palette" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="Theme Editor (custom colors)" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+<LinearLayout
+        android:id="@+id/row_hidden"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_eye" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="Hidden Chats" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+<LinearLayout
+        android:id="@+id/row_storage"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_trash" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="Storage &amp; Cache" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+<LinearLayout
+        android:id="@+id/row_icons"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_launcher_foreground" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="App Icon" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+<LinearLayout
+        android:id="@+id/row_selfdestruct"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_clock" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="Delete account if inactive" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+<LinearLayout
+        android:id="@+id/row_browser"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_globe" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="Open links in internal browser" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+<LinearLayout
+        android:id="@+id/row_materialyou"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_palette" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="Material You (wallpaper colors)" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+<LinearLayout
         android:id="@+id/row_wallpaper"
         android:layout_width="match_parent"
         android:layout_height="52dp"

@@ -1,6 +1,7 @@
 package com.telx.app.net
 
 import com.telx.app.data.ApiErr
+import com.telx.app.data.Chat
 import com.telx.app.data.Prefs
 import org.json.JSONArray
 import org.json.JSONObject
@@ -192,7 +193,8 @@ object Api {
     fun send(chatId: Int, type: String, text: String = "", mediaRel: String? = null, thumbRel: String? = null,
              mediaName: String = "", mediaSize: Long = 0, mediaDuration: Int = 0,
              replyTo: Int = 0, scheduledTs: Long = 0, mediaJson: String? = null,
-             stickerFile: String? = null): JSONObject =
+             stickerFile: String? = null, silent: Boolean = false, anon: Boolean = false,
+             effect: String? = null, groupId: Long = 0, commentTo: Int = 0): JSONObject =
         call("messages", "send") {
             put("chat_id", chatId); put("type", type); put("text", text)
             if (!mediaRel.isNullOrEmpty()) put("media_rel", mediaRel)
@@ -204,6 +206,11 @@ object Api {
             if (scheduledTs > 0) put("scheduled_ts", scheduledTs)
             if (!mediaJson.isNullOrEmpty()) put("media_json", mediaJson)
             if (!stickerFile.isNullOrEmpty()) put("sticker", stickerFile)
+            if (silent) put("silent", 1)
+            if (anon) put("anon", 1)
+            if (!effect.isNullOrEmpty()) put("effect", effect)
+            if (groupId > 0) put("group_id", groupId)
+            if (commentTo > 0) put("comment_to", commentTo)
         }
 
     fun editMessage(messageId: Int, text: String): JSONObject =
@@ -219,6 +226,17 @@ object Api {
 
     fun pin(chatId: Int, messageId: Int) = call("messages", "pin") { put("chat_id", chatId); put("message_id", messageId) }
     fun unpin(chatId: Int) = call("messages", "pin") { put("chat_id", chatId); put("message_id", 0) }
+    // v6: multi-pin
+    fun pinList(chatId: Int): ArrayList<Message> =
+        Message.parseArray(call("messages", "pin_list") { put("chat_id", chatId) }.optJSONArray("messages"))
+    fun pinSet(chatId: Int, messageId: Int, pinned: Boolean) =
+        call("messages", "pin_set") { put("chat_id", chatId); put("message_id", messageId); put("pinned", if (pinned) 1 else 0) }
+    // v6: comments + jump-to-date + audio tab
+    fun comments(postId: Int): JSONObject = call("messages", "comments") { put("post_id", postId) }
+    fun messagesByDate(chatId: Int, date: String): ArrayList<Message> =
+        Message.parseArray(call("messages", "by_date") { put("chat_id", chatId); put("date", date) }.optJSONArray("messages"))
+    fun audioList(chatId: Int): ArrayList<Message> =
+        Message.parseArray(call("messages", "media_list") { put("chat_id", chatId); put("kind", "audio") }.optJSONArray("messages"))
     fun markRead(chatId: Int, lastReadId: Int) { tryCall("messages", "read") { put("chat_id", chatId); put("last_read_id", lastReadId) } }
     fun markDelivered(chatId: Int, lastId: Int) { tryCall("messages", "delivered") { put("chat_id", chatId); put("last_delivered_id", lastId) } }
     fun typing(chatId: Int) { tryCall("messages", "typing") { put("chat_id", chatId) } }
@@ -256,6 +274,42 @@ object Api {
     fun inviteInfo(chatId: Int, reset: Boolean = false): JSONObject =
         call("chats", "invite") { put("chat_id", chatId); put("reset", if (reset) 1 else 0) }
     fun joinInvite(code: String): JSONObject = call("chats", "join_invite") { put("code", code) }
+
+    // ---------------- v6: group/channel admin ----------------
+    fun setSlowMode(chatId: Int, seconds: Int) =
+        call("chats", "set_slow_mode") { put("chat_id", chatId); put("seconds", seconds) }
+    fun setJoinRequest(chatId: Int, enabled: Boolean) =
+        call("chats", "set_join_request") { put("chat_id", chatId); put("enabled", if (enabled) 1 else 0) }
+    fun setPerms(chatId: Int, perms: JSONObject) =
+        call("chats", "set_perms") { put("chat_id", chatId); put("perms", perms.toString()) }
+    fun banMember(chatId: Int, userId: Int, banned: Boolean) =
+        call("chats", "ban_member") { put("chat_id", chatId); put("user_id", userId); put("banned", if (banned) 1 else 0) }
+    fun bannedList(chatId: Int): JSONArray =
+        call("chats", "banned_list") { put("chat_id", chatId) }.getJSONArray("banned")
+    fun linksList(chatId: Int): ArrayList<com.telx.app.data.InviteLink> =
+        com.telx.app.data.InviteLink.parseArray(call("chats", "links_list") { put("chat_id", chatId) }.optJSONArray("links"))
+    fun linkCreate(chatId: Int, name: String, expiresDays: Int, usageLimit: Int): JSONObject =
+        call("chats", "link_create") {
+            put("chat_id", chatId); put("name", name)
+            put("expires_days", expiresDays); put("usage_limit", usageLimit)
+        }
+    fun linkRevoke(chatId: Int, linkId: Int) =
+        call("chats", "link_revoke") { put("chat_id", chatId); put("link_id", linkId) }
+    fun requestsList(chatId: Int): JSONArray =
+        call("chats", "requests_list") { put("chat_id", chatId) }.getJSONArray("requests")
+    fun requestDecide(chatId: Int, userId: Int, approve: Boolean) =
+        call("chats", "request_decide") { put("chat_id", chatId); put("user_id", userId); put("approve", if (approve) 1 else 0) }
+    fun setHidden(chatId: Int, hidden: Boolean) =
+        call("chats", "set_hidden") { put("chat_id", chatId); put("hidden", if (hidden) 1 else 0) }
+    fun hiddenChats(): ArrayList<Chat> =
+        Chat.parseArray(call("chats", "hidden_list").optJSONArray("chats"))
+    fun chatStats(chatId: Int): com.telx.app.data.ChatStats =
+        com.telx.app.data.ChatStats(call("chats", "chat_stats") { put("chat_id", chatId) }.getJSONObject("stats"))
+
+    // ---------------- v6: security / moderation ----------------
+    fun report(targetType: String, targetId: Int, reason: String) =
+        call("reports", "report") { put("target_type", targetType); put("target_id", targetId); put("reason", reason) }
+    fun setSelfDestruct(months: Int) = call("auth", "set_self_destruct") { put("months", months) }
 
     fun setAutoDelete(chatId: Int, seconds: Int) = call("chats", "set_auto_delete") { put("chat_id", chatId); put("seconds", seconds) }
 

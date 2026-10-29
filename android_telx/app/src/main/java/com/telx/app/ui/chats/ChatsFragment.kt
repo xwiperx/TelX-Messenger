@@ -242,6 +242,13 @@ class ChatsFragment : Fragment(), Events.Listener {
                     com.telx.app.svc.PollService.MuteCache.setMuted(c.id, c.muted)
                 }
                 (activity as? com.telx.app.ui.MainActivity)?.refreshDrawerHeader()
+                // v6: cache the 4 most recent chats for the home-screen widget
+                try {
+                    val j = org.json.JSONArray()
+                    allChats.take(4).forEach { j.put(org.json.JSONObject().put("id", it.id).put("name", it.displayName)) }
+                    com.telx.app.data.Prefs.recentChats = j.toString()
+                    com.telx.app.widget.ChatsWidget.updateAll(requireContext())
+                } catch (_: Exception) {}
                 try {
                     val feed = withContext(Dispatchers.IO) { Api.storiesFeed() }
                     stories.clear()
@@ -276,6 +283,10 @@ class ChatsFragment : Fragment(), Events.Listener {
         items.add(if (c.muted) "Unmute notifications" else "Mute notifications")
         items.add(if (c.archived) "Unarchive" else "Archive")
         items.add("Add to folder")
+        // v6: hide (hidden chats) + per-chat app lock
+        items.add(if (c.hidden) "Unhide chat" else "Hide chat")
+        if (com.telx.app.data.Prefs.appLockPin.isNotEmpty())
+            items.add(if (com.telx.app.data.Prefs.isChatLocked(c.id)) "Unlock chat (remove PIN)" else "Lock chat with PIN")
         items.add("Clear history")
         if (c.type == "group") items.add("Leave group")
         if (c.isChannel) items.add("Leave channel")
@@ -284,6 +295,12 @@ class ChatsFragment : Fragment(), Events.Listener {
             .setItems(items.toTypedArray()) { _, which ->
                 val label = items[which]
                 if (label == "Add to folder") { showAddToFolder(c); return@setItems }
+                if (label.startsWith("Lock chat") || label.startsWith("Unlock chat")) {
+                    val lock = label.startsWith("Lock chat")
+                    com.telx.app.data.Prefs.setChatLocked(c.id, lock)
+                    Helpers.toast(context, if (lock) "Chat locked — PIN required to open" else "Chat lock removed")
+                    return@setItems
+                }
                 ui.launch {
                     try {
                         when (label) {
@@ -293,6 +310,8 @@ class ChatsFragment : Fragment(), Events.Listener {
                             "Unmute notifications" -> withContext(Dispatchers.IO) { Api.setMute(c.id, false) }
                             "Archive" -> withContext(Dispatchers.IO) { Api.setArchived(c.id, true) }
                             "Unarchive" -> withContext(Dispatchers.IO) { Api.setArchived(c.id, false) }
+                            "Hide chat" -> withContext(Dispatchers.IO) { Api.setHidden(c.id, true) }
+                            "Unhide chat" -> withContext(Dispatchers.IO) { Api.setHidden(c.id, false) }
                             "Clear history" -> withContext(Dispatchers.IO) { Api.clearHistory(c.id) }
                             "Leave group" -> withContext(Dispatchers.IO) { Api.leaveGroup(c.id) }
                             "Leave channel" -> withContext(Dispatchers.IO) { Api.leaveChannel(c.id) }

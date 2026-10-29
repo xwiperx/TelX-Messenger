@@ -73,6 +73,11 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
     private var typingSentAt = 0L
     private val handler = Handler(Looper.getMainLooper())
     private var draftApplied = false
+    // v6: send options
+    private var silentSend = false
+    private var anonSend = false
+    private var pendingEffect: String? = null
+    private var albumGroupId = 0L
 
     private lateinit var recycler: RecyclerView
     private lateinit var toolbar: Toolbar
@@ -107,6 +112,23 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
 
     private val pickMedia = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) handlePicked(uri, kind = "photo")
+    }
+    // v6: multi-photo album picker
+    private val pickMultiMedia = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetMultipleContents()) { uris ->
+        if (uris.isNotEmpty()) sendAlbum(uris.take(6))
+    }
+    // v6: photo editor result
+    private val editPhotoResult = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()) { res ->
+        val path = res.data?.getStringExtra("path") ?: return@registerForActivityResult
+        ui.launch { sendEditedPhoto(File(path)) }
+    }
+    // v6: video trimmer result
+    private val trimVideoResult = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()) { res ->
+        val path = res.data?.getStringExtra("path") ?: return@registerForActivityResult
+        ui.launch { sendTrimmedVideo(File(path)) }
     }
     private val pickFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) handlePicked(uri, kind = "file")
@@ -152,6 +174,11 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         if (chatId <= 0) { finish(); return }
 
         root = findViewById(R.id.chat_root)
+        // v6: per-chat lock — gate this chat behind the app PIN when set
+        if (Prefs.isChatLocked(chatId) && Prefs.appLockPin.isNotEmpty()) {
+            root.visibility = View.INVISIBLE
+            gateChatPin()
+        }
         toolbar = findViewById(R.id.chat_toolbar)
         titleView = findViewById(R.id.chat_title)
         statusView = findViewById(R.id.chat_status)
@@ -194,6 +221,16 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         adapter.onImageClick = { showImage(it) }
         adapter.onRetryClick = { retryFailed(it) }
         adapter.onReactClick = { m, emoji -> react(m, emoji) }
+        // v6 callbacks
+        adapter.onEffect = { eff -> playEffect(eff) }
+        adapter.onCommentsClick = { m ->
+            startActivity(Intent(this, CommentsActivity::class.java)
+                .putExtra("post_id", m.id).putExtra("chat_id", chatId))
+        }
+        adapter.onTagClick = { kind, value ->
+            if (kind == "tag") showChatSearch("#$value")
+            else openMention(value)
+        }
         adapter.onMessageClick = { msg ->
             if (selecting) toggleSelect(msg)
             else showMessageActions(msg)
@@ -249,7 +286,7 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
 
         btnAttach.setOnClickListener { showAttachSheet() }
         btnSend.setOnClickListener { sendCurrent() }
-        btnSend.setOnLongClickListener { scheduleMessage(); true }
+        btnSend.setOnLongClickListener { showSendOptions(); true }
         findViewById<ImageView>(R.id.btn_emoji).setOnClickListener {
             com.telx.app.ui.common.EmojiSheet.show(this, input)
         }
@@ -284,7 +321,8 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
             override fun onTextChanged(p0: CharSequence?, a: Int, b: Int, c: Int) {}
         })
         replyClose.setOnClickListener { clearReply() }
-        pinnedClose.setOnClickListener { ui.launch { try { withContext(Dispatchers.IO) { Api.unpin(chatId) } } catch (_: Exception) {} } }
+        pinnedBar.setOnClickListener { showPinnedList() }
+        pinnedClose.setOnClickListener { ui.launch { try { withContext(Dispatchers.IO) { Api.pinSet(chatId, 0, false) } } catch (_: Exception) {} } }
         recordingBar.findViewById<ImageView>(R.id.recording_cancel).setOnClickListener { cancelRecording() }
 
         loadInfo()
@@ -349,6 +387,9 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                     c.isSaved -> ""
                     else -> Helpers.lastSeenText(peer?.online == true, peer?.lastTs ?: 0)
                 }
+                // v6: slow mode hint in the input
+                input.hint = if (c.isGroup && c.slowMode > 0 && !c.isAdmin)
+                    "Slow mode: wait ${c.slowMode}s between messages" else "Message"
                 statusView.setTextColor(
                     if (isTyping || peer?.online == true) 0xFF3390EC.toInt() else 0xFF8A8A8E.toInt())
                 // pinned message
@@ -409,6 +450,8 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         m.findItem(R.id.chat_leave)?.isVisible = c.isChannel
         m.findItem(R.id.chat_delete)?.isVisible = c.isChannel && c.myRole == "admin"
         m.findItem(R.id.chat_clear)?.isVisible = !c.isChannel || c.myRole == "admin"
+        // v6: admin panel for groups and channels
+        m.findItem(R.id.chat_admin)?.isVisible = (c.isGroup || c.isChannel) && c.isAdmin
     }
 
     private fun loadMessages() {
@@ -563,11 +606,17 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         val rt = replyTo?.id ?: 0
         replyTo = null
         clearReplyBar()
-        sendOptimistic("text", t, null, null, 0, rt)
+        sendOptimistic("text", t, null, null, 0, rt, silent = silentSend, anon = anonSend, effect = pendingEffect)
+        // one-shot send options reset (Telegram behavior)
+        silentSend = false
+        anonSend = false
+        pendingEffect = null
     }
 
     private fun sendOptimistic(type: String, text: String, mediaRel: String?, thumbRel: String?, dur: Int, replyId: Int,
-                              mediaName: String = "", mediaSize: Long = 0) {
+                              mediaName: String = "", mediaSize: Long = 0,
+                              silent: Boolean = false, anon: Boolean = false,
+                              effect: String? = null, groupId: Long = 0) {
         val m = Message(JSONObject()
             .put("id", pendingId.decrementAndGet())
             .put("chat_id", chatId)
@@ -591,7 +640,8 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
             try {
                 val j = withContext(Dispatchers.IO) {
                     Api.send(chatId, type, text, mediaRel, thumbRel, mediaName = mediaName,
-                        mediaSize = mediaSize, mediaDuration = dur, replyTo = replyId)
+                        mediaSize = mediaSize, mediaDuration = dur, replyTo = replyId,
+                        silent = silent, anon = anon, effect = effect, groupId = groupId)
                 }
                 val real = Message(j.getJSONObject("message"))
                 val idx = messages.indexOfFirst { it.id == m.id }
@@ -600,12 +650,14 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                     adapter.notifyMessageChanged(real.id)
                 }
                 adapter.peerDeliveredId = maxOf(adapter.peerDeliveredId, real.id)
+                if (real.effect != null) playEffect(real.effect)
             } catch (e: Exception) {
                 val idx = messages.indexOfFirst { it.id == m.id }
                 if (idx >= 0) {
                     messages[idx].state = Message.STATE_FAILED
                     adapter.notifyMessageChanged(m.id)
-                    Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Message not sent")
+                    Helpers.toast(this@ChatActivity,
+                        if (e is ApiErr) e.message else "Message not sent")
                 }
             }
         }
@@ -829,6 +881,11 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         v.findViewById<LinearLayout>(R.id.attach_photo).setOnClickListener { d.dismiss(); pickMedia.launch(arrayOf("image/*")) }
         v.findViewById<LinearLayout>(R.id.attach_gallery).setOnClickListener { d.dismiss(); pickMedia.launch(arrayOf("image/*", "video/mp4")) }
         v.findViewById<LinearLayout>(R.id.attach_file).setOnClickListener { d.dismiss(); pickFile.launch(arrayOf("*/*")) }
+        // v6 attach rows: photo editor / album / trim / music / format
+        v.findViewById<LinearLayout>(R.id.attach_edit_photo).setOnClickListener { d.dismiss(); launchPhotoEditor() }
+        v.findViewById<LinearLayout>(R.id.attach_album).setOnClickListener { d.dismiss(); pickMultiMedia.launch("image/*") }
+        v.findViewById<LinearLayout>(R.id.attach_trim).setOnClickListener { d.dismiss(); launchVideoTrim() }
+        v.findViewById<LinearLayout>(R.id.attach_music).setOnClickListener { d.dismiss(); MusicPlayerSheet.show(this, chatId) }
         v.findViewById<LinearLayout>(R.id.attach_sticker).setOnClickListener {
             d.dismiss()
             com.telx.app.ui.common.StickerPickerSheet.show(this) { url ->
@@ -968,7 +1025,14 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
             items.add("Forward" to { startSelectionForForward(m) })
         if (mine && m.type == "text" && m.state == Message.STATE_OK)
             items.add("Edit" to { showReplyFor(m, true) })
-        if (m.id > 0) items.add("Pin" to { ui.launch { withContext(Dispatchers.IO) { Api.pin(chatId, m.id) } } })
+        // v6: multi-pin (toggle per message)
+        if (m.id > 0) {
+            val canPin = chat?.isAdmin == true || (chat != null && !chat.isGroup && !chat.isChannel)
+            if (canPin) {
+                if (m.pinned) items.add("Unpin" to { pinMsg(m.id, false) })
+                else items.add("Pin" to { pinMsg(m.id, true) })
+            }
+        }
         items.add("Select" to { startSelection() })
         if (mine || (chat?.type == "group") || (chat?.isChannel == true && chat?.myRole == "admin"))
             items.add("Delete" to { confirmDelete(listOf(m.id)) })
@@ -991,6 +1055,14 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         ui.launch {
             try { withContext(Dispatchers.IO) { Api.react(m.id, emoji) } }
             catch (e: Exception) { Helpers.toast(this@ChatActivity, "Reaction failed") }
+        }
+    }
+
+    /** v6 helper: pin/unpin one message (multi-pin). */
+    private fun pinMsg(mid: Int, pin: Boolean) {
+        ui.launch {
+            try { withContext(Dispatchers.IO) { Api.pinSet(chatId, mid, pin) } }
+            catch (_: Exception) { Helpers.toast(this@ChatActivity, "Pin failed") }
         }
     }
 
@@ -1324,6 +1396,11 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
     }
 
     private fun showImage(m: Message) {
+        // v6: videos open in the internal PiP-capable player
+        if (m.type == "video" && m.media != null) {
+            startActivity(Intent(this, VideoPlayerActivity::class.java).putExtra("url", m.media))
+            return
+        }
         val dialog = AlertDialog.Builder(this).create()
         val iv = ImageView(this)
         iv.setBackgroundColor(Color.BLACK)
@@ -1368,6 +1445,11 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
             R.id.chat_media ->
                 startActivity(Intent(this, MediaGalleryActivity::class.java)
                     .putExtra("chat_id", chatId))
+            R.id.chat_music -> MusicPlayerSheet.show(this, chatId)
+            R.id.chat_jump -> jumpToDate()
+            R.id.chat_pins -> showPinnedList()
+            R.id.chat_admin -> showAdminSheet()
+            R.id.chat_report -> reportChat()
             R.id.chat_export -> showExportDialog()
             R.id.chat_autodelete -> showAutoDeleteDialog()
         }
@@ -1407,7 +1489,7 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                         val f = File(cacheDir, "TelX_${title}_${System.currentTimeMillis()}.$ext")
                         f.writeText(content)
                         val uri = androidx.core.content.FileProvider.getUriForFile(
-                            this@ChatActivity, "$packageName.fileprovider", f)
+                            this@ChatActivity, "$packageName.files", f)
                         val send = Intent(Intent.ACTION_SEND)
                             .setType(if (which == 0) "text/plain" else "application/json")
                             .putExtra(Intent.EXTRA_STREAM, uri)
@@ -1444,9 +1526,10 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
             .show()
     }
 
-    private fun showChatSearch() {
+    private fun showChatSearch(prefill: String = "") {
         val v = layoutInflater.inflate(R.layout.dialog_search_in_chat, null)
         val searchInput = v.findViewById<EditText>(R.id.et_chat_search)
+        if (prefill.isNotEmpty()) searchInput.setText(prefill)
         AlertDialog.Builder(this)
             .setTitle("Search in chat")
             .setView(v)
@@ -1482,4 +1565,397 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
     }
 
     override fun onSupportNavigateUp(): Boolean { finish(); return true }
+
+    // ================= v6 features =================
+
+    /** per-chat lock: PIN gate (same PIN as the app lock). */
+    private fun gateChatPin() {
+        val input = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            hint = "Enter your PIN"
+            setPadding(Helpers.dp(this@ChatActivity, 24), 0, Helpers.dp(this@ChatActivity, 24), 0)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("This chat is locked")
+            .setCancelable(false)
+            .setView(input)
+            .setPositiveButton("Unlock") { _, _ ->
+                val pin = input.text?.toString() ?: ""
+                if (com.telx.app.ui.settings.AppLock.hash(pin) == Prefs.appLockPin) {
+                    com.telx.app.ui.settings.AppLock.unlockSuccess()
+                    root.visibility = View.VISIBLE
+                } else {
+                    Helpers.toast(this, "Wrong PIN")
+                    finish()
+                }
+            }
+            .setNegativeButton("Close") { _, _ -> finish() }
+            .show()
+    }
+
+    /** message effects overlay (confetti / fireworks / hearts). */
+    private fun playEffect(effect: String?) {
+        if (effect.isNullOrEmpty()) return
+        val ev = com.telx.app.ui.common.EffectView(this)
+        root.addView(ev, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT))
+        ev.play(effect)
+    }
+
+    /** long-press send → schedule / silent / anonymous / effects menu. */
+    private fun showSendOptions() {
+        val canAnon = chat?.isAdmin == true && (chat?.isGroup == true || chat?.isChannel == true)
+        val items = ArrayList<Pair<String, () -> Unit>>()
+        items.add("Schedule message" to { scheduleMessage() })
+        if (silentSend) items.add("Send without sound ✓ (tap to turn off)" to { silentSend = false })
+        else items.add("Send without sound" to { silentSend = true; Helpers.toast(this, "Next message will be sent silently") })
+        if (canAnon) {
+            if (anonSend) items.add("Send as channel ✓ (tap to turn off)" to { anonSend = false })
+            else items.add("Send as channel (anon)" to { anonSend = true; Helpers.toast(this, "Next post will be sent as the channel") })
+        }
+        items.add("Message effect…" to { pickEffect() })
+        items.add("Format text" to { showFormatDialog() })
+        val labels = items.map { it.first }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Send options")
+            .setItems(labels) { _, which -> items[which].second() }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun pickEffect() {
+        val effects = arrayOf("No effect", "🎉 Confetti", "🎆 Fireworks", "❤️ Hearts")
+        AlertDialog.Builder(this)
+            .setTitle("Message effect")
+            .setSingleChoiceItems(effects, 0) { d, which ->
+                pendingEffect = when (which) {
+                    1 -> "confetti"; 2 -> "fireworks"; 3 -> "hearts"; else -> null
+                }
+                d.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** Telegram-style format toolbar for the selected text. */
+    private fun showFormatDialog() {
+        val labels = arrayOf("Bold  **text**", "Italic  __text__", "Strikethrough  ~~text~~",
+            "Mono  `text`", "Spoiler  ||text||")
+        AlertDialog.Builder(this)
+            .setTitle("Format text")
+            .setItems(labels) { _, which ->
+                val marker = when (which) {
+                    0 -> "**"; 1 -> "__"; 2 -> "~~"; 3 -> "`"; else -> "||"
+                }
+                com.telx.app.ui.common.RichText.wrap(input, marker)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    // ---- photo editor flow ----
+    private val pickForEdit = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) editPhotoResult.launch(Intent(this, PhotoEditActivity::class.java).putExtra("uri", uri))
+    }
+    private fun launchPhotoEditor() { pickForEdit.launch(arrayOf("image/*")) }
+
+    // ---- video trim flow ----
+    private val pickForTrim = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) trimVideoResult.launch(Intent(this, VideoTrimActivity::class.java).putExtra("uri", uri))
+    }
+    private fun launchVideoTrim() { pickForTrim.launch(arrayOf("video/*")) }
+
+    /** send several photos as one album (shared group id → grouped grid). */
+    private fun sendAlbum(uris: List<Uri>) {
+        val gid = System.currentTimeMillis()
+        albumGroupId = gid
+        Helpers.toast(this, "Sending ${uris.size} photos…")
+        ui.launch {
+            for (uri in uris) {
+                try {
+                    val f = copyToCache(uri, "album") ?: continue
+                    val compressed = withContext(Dispatchers.IO) { Helpers.compressImage(this@ChatActivity, f) }
+                    val up = withContext(Dispatchers.IO) { Api.upload("photo", compressed) }
+                    sendOptimistic(if (up.optString("mime") == "image/gif") "gif" else "photo", "",
+                        up.optString("rel"), up.optStringOrNull("thumb_rel"), 0, 0, groupId = gid)
+                    if (compressed !== f) compressed.delete()
+                    f.delete()
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    private suspend fun sendEditedPhoto(f: File) {
+        try {
+            val up = withContext(Dispatchers.IO) { Api.upload("photo", f) }
+            sendOptimistic("photo", "", up.optString("rel"), up.optStringOrNull("thumb_rel"), 0, replyTo?.id ?: 0)
+            f.delete()
+        } catch (e: Exception) {
+            Helpers.toast(this, if (e is ApiErr) e.message else "Upload failed")
+        }
+    }
+
+    private suspend fun sendTrimmedVideo(f: File) {
+        try {
+            val thumb = withContext(Dispatchers.IO) { Helpers.videoThumb(this@ChatActivity, f) }
+            val up = withContext(Dispatchers.IO) { Api.upload("video", f) }
+            var thumbRel: String? = null
+            if (thumb != null) {
+                try { thumbRel = withContext(Dispatchers.IO) { Api.upload("photo", thumb) }.optString("rel") }
+                catch (_: Exception) {}
+                thumb.delete()
+            }
+            sendOptimistic("video", "", up.optString("rel"), thumbRel, 0, replyTo?.id ?: 0)
+            f.delete()
+        } catch (e: Exception) {
+            Helpers.toast(this, if (e is ApiErr) e.message else "Upload failed")
+        }
+    }
+
+    /** list of all pinned messages (multi-pin) with quick unpin. */
+    private fun showPinnedList() {
+        ui.launch {
+            try {
+                val pins = withContext(Dispatchers.IO) { Api.pinList(chatId) }
+                if (pins.isEmpty()) { Helpers.toast(this@ChatActivity, "No pinned messages"); return@launch }
+                val labels = pins.map { "📌 ${it.text.ifEmpty { "[${it.type}]" }.take(60)}" }.toTypedArray()
+                AlertDialog.Builder(this@ChatActivity)
+                    .setTitle("${pins.size} pinned")
+                    .setItems(labels) { _, which ->
+                        val m = pins[which]
+                        val idx = messages.indexOfFirst { it.id == m.id }
+                        if (idx >= 0) recycler.scrollToPosition(adapter.rowOfMessage(m.id).coerceAtLeast(0))
+                    }
+                    .setNeutralButton("Unpin all") { _, _ ->
+                        ui.launch { try { withContext(Dispatchers.IO) { Api.pinSet(chatId, 0, false) } } catch (_: Exception) {} }
+                    }
+                    .setNegativeButton("Close", null)
+                    .show()
+            } catch (e: Exception) { Helpers.toast(this@ChatActivity, "Couldn't load pins") }
+        }
+    }
+
+    /** jump-to-date calendar (Telegram-style "go to date"). */
+    private fun jumpToDate() {
+        val cal = java.util.Calendar.getInstance()
+        android.app.DatePickerDialog(this, { _, y, mo, d ->
+            val date = "%04d-%02d-%02d".format(y, mo + 1, d)
+            ui.launch {
+                try {
+                    val list = withContext(Dispatchers.IO) { Api.messagesByDate(chatId, date) }
+                    if (list.isEmpty()) { Helpers.toast(this@ChatActivity, "Nothing around $date"); return@launch }
+                    messages.clear()
+                    messages.addAll(list)
+                    adapter.notifyAllChanged()
+                    recycler.post { recycler.scrollToPosition(0) }
+                    empty.visibility = View.GONE
+                } catch (e: Exception) { Helpers.toast(this@ChatActivity, "Couldn't jump to date") }
+            }
+        }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH))
+            .show()
+    }
+
+    /** report this chat/group/channel for spam (v6 moderation). */
+    private fun reportChat() {
+        val reasons = arrayOf("Spam", "Fake account", "Violence", "Pornography", "Other")
+        AlertDialog.Builder(this)
+            .setTitle("Report ${chat?.displayName}")
+            .setItems(reasons) { _, which ->
+                ui.launch {
+                    try {
+                        withContext(Dispatchers.IO) { Api.report("chat", chatId, reasons[which]) }
+                        Helpers.toast(this@ChatActivity, "Report sent. Thank you.")
+                    } catch (e: Exception) { Helpers.toast(this@ChatActivity, "Report failed") }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** tap an @mention → open that user's profile. */
+    private fun openMention(username: String) {
+        ui.launch {
+            try {
+                val arr = withContext(Dispatchers.IO) { Api.searchUsers(username) }
+                if (arr.length() == 0) { Helpers.toast(this@ChatActivity, "User @$username not found"); return@launch }
+                val uid = arr.getJSONObject(0).optInt("id")
+                startActivity(Intent(this@ChatActivity, com.telx.app.ui.profile.UserProfileActivity::class.java)
+                    .putExtra("user_id", uid))
+            } catch (_: Exception) {}
+        }
+    }
+
+    /** v6 group/channel admin panel: slow mode, permissions, join requests,
+     *  invite links, banned members, statistics. */
+    private fun showAdminSheet() {
+        val c = chat ?: return
+        val items = ArrayList<Pair<String, () -> Unit>>()
+        if (c.isGroup) items.add("Slow mode" to { pickSlowMode() })
+        items.add("Member permissions" to { pickPerms() })
+        items.add("Join requests" to { showJoinRequests() })
+        items.add("Invite links" to { showInviteLinks() })
+        items.add("Banned members" to { showBannedMembers() })
+        items.add("Statistics" to {
+            startActivity(Intent(this, com.telx.app.ui.settings.StatsActivity::class.java)
+                .putExtra("chat_id", chatId))
+        })
+        AlertDialog.Builder(this)
+            .setTitle("Manage ${c.displayName}")
+            .setItems(items.map { it.first }.toTypedArray()) { _, which -> items[which].second() }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun pickSlowMode() {
+        val labels = arrayOf("Off", "10 seconds", "30 seconds", "1 minute", "5 minutes", "15 minutes")
+        val secs = intArrayOf(0, 10, 30, 60, 300, 900)
+        AlertDialog.Builder(this)
+            .setTitle("Slow mode — wait time between member messages")
+            .setSingleChoiceItems(labels, -1) { d, which ->
+                d.dismiss()
+                ui.launch {
+                    try {
+                        withContext(Dispatchers.IO) { Api.setSlowMode(chatId, secs[which]) }
+                        Helpers.toast(this@ChatActivity, "Slow mode: ${labels[which]}")
+                        loadInfo(quiet = true)
+                    } catch (e: Exception) { Helpers.toast(this@ChatActivity, "Failed") }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun pickPerms() {
+        val c = chat ?: return
+        val rights = listOf("send_media" to "Send photos & media", "send_links" to "Send links",
+            "send_stickers" to "Send stickers & GIFs", "add_members" to "Add new members")
+        val cur = c.perms
+        val states = rights.map { it.first }.map { cur?.optInt(it, 1) == 1 }.toBooleanArray()
+        AlertDialog.Builder(this)
+            .setTitle("Member permissions (members other than admins)")
+            .setMultiChoiceItems(rights.map { it.second }.toTypedArray(), states) { _, which, checked ->
+                states[which] = checked
+            }
+            .setPositiveButton("Save") { _, _ ->
+                ui.launch {
+                    try {
+                        val j = org.json.JSONObject()
+                        rights.forEachIndexed { i, (key, _) -> j.put(key, if (states[i]) 1 else 0) }
+                        withContext(Dispatchers.IO) { Api.setPerms(chatId, j) }
+                        Helpers.toast(this@ChatActivity, "Permissions saved")
+                        loadInfo(quiet = true)
+                    } catch (e: Exception) { Helpers.toast(this@ChatActivity, "Failed") }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showJoinRequests() {
+        ui.launch {
+            try {
+                val arr = withContext(Dispatchers.IO) { Api.requestsList(chatId) }
+                if (arr.length() == 0) { Helpers.toast(this@ChatActivity, "No pending requests"); return@launch }
+                val names = (0 until arr.length()).map { arr.getJSONObject(it).optString("name") }.toTypedArray()
+                AlertDialog.Builder(this@ChatActivity)
+                    .setTitle("Join requests")
+                    .setItems(names) { _, which ->
+                        val uid = arr.getJSONObject(which).optInt("id")
+                        AlertDialog.Builder(this@ChatActivity)
+                            .setMessage("Approve ${names[which]}?")
+                            .setPositiveButton("Approve") { _, _ ->
+                                ui.launch { try { withContext(Dispatchers.IO) { Api.requestDecide(chatId, uid, true) } } catch (_: Exception) {} }
+                            }
+                            .setNegativeButton("Decline") { _, _ ->
+                                ui.launch { try { withContext(Dispatchers.IO) { Api.requestDecide(chatId, uid, false) } } catch (_: Exception) {} }
+                            }
+                            .show()
+                    }
+                    .setNegativeButton("Close", null)
+                    .show()
+            } catch (e: Exception) { Helpers.toast(this@ChatActivity, "Only admins can review requests") }
+        }
+    }
+
+    private fun showInviteLinks() {
+        ui.launch {
+            try {
+                val links = withContext(Dispatchers.IO) { Api.linksList(chatId) }
+                val labels = links.map {
+                    "${if (it.revoked) "⛔ " else "🔗 "}${it.name.ifEmpty { "Invite link" }} — ${it.uses}" +
+                        (if (it.usageLimit > 0) "/${it.usageLimit}" else "") + " uses" +
+                        (if (it.expiresTs > 0) " · expires" else "")
+                }.toTypedArray()
+                AlertDialog.Builder(this@ChatActivity)
+                    .setTitle("Invite links")
+                    .setItems(labels) { _, which ->
+                        val l = links[which]
+                        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        cm.setPrimaryClip(ClipData.newPlainText("invite", l.link))
+                        Helpers.toast(this@ChatActivity, "Link copied: ${l.link}")
+                    }
+                    .setNeutralButton("+ New link") { _, _ -> createInviteLink() }
+                    .setPositiveButton("Revoke") { _, _ ->
+                        AlertDialog.Builder(this@ChatActivity)
+                            .setItems(links.filter { !it.revoked }.map { it.name.ifEmpty { it.link } }.toTypedArray()) { _, w ->
+                                val target = links.filter { !it.revoked }[w]
+                                ui.launch { try { withContext(Dispatchers.IO) { Api.linkRevoke(chatId, target.id) } } catch (_: Exception) {} }
+                            }
+                            .setNegativeButton("Cancel", null)
+                            .show()
+                    }
+                    .setNegativeButton("Close", null)
+                    .show()
+            } catch (e: Exception) { Helpers.toast(this@ChatActivity, "Failed to load links") }
+        }
+    }
+
+    private fun createInviteLink() {
+        val v = layoutInflater.inflate(R.layout.dialog_link_create, null)
+        val name = v.findViewById<EditText>(R.id.et_link_name)
+        val days = v.findViewById<EditText>(R.id.et_link_days)
+        val limit = v.findViewById<EditText>(R.id.et_link_limit)
+        AlertDialog.Builder(this)
+            .setTitle("New invite link")
+            .setView(v)
+            .setPositiveButton("Create") { _, _ ->
+                ui.launch {
+                    try {
+                        val j = withContext(Dispatchers.IO) {
+                            Api.linkCreate(chatId,
+                                name.text?.toString()?.trim() ?: "",
+                                days.text?.toString()?.toIntOrNull() ?: 0,
+                                limit.text?.toString()?.toIntOrNull() ?: 0)
+                        }
+                        Helpers.toast(this@ChatActivity, "Created: ${j.optString("link")}")
+                    } catch (e: Exception) { Helpers.toast(this@ChatActivity, "Failed") }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showBannedMembers() {
+        ui.launch {
+            try {
+                val arr = withContext(Dispatchers.IO) { Api.bannedList(chatId) }
+                if (arr.length() == 0) { Helpers.toast(this@ChatActivity, "No banned members"); return@launch }
+                val names = (0 until arr.length()).map { arr.getJSONObject(it).optString("name") }.toTypedArray()
+                AlertDialog.Builder(this@ChatActivity)
+                    .setTitle("Banned members")
+                    .setItems(names) { _, which ->
+                        val uid = arr.getJSONObject(which).optInt("id")
+                        AlertDialog.Builder(this@ChatActivity)
+                            .setMessage("Unban ${names[which]}?")
+                            .setPositiveButton("Unban") { _, _ ->
+                                ui.launch { try { withContext(Dispatchers.IO) { Api.banMember(chatId, uid, false) } } catch (_: Exception) {} }
+                            }
+                            .setNegativeButton("Cancel", null)
+                            .show()
+                    }
+                    .setNegativeButton("Close", null)
+                    .show()
+            } catch (e: Exception) { Helpers.toast(this@ChatActivity, "Failed") }
+        }
+    }
 }

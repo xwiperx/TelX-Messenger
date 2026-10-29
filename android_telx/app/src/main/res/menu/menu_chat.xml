@@ -47,6 +47,27 @@
         android:title="Schedule message"
         app:showAsAction="never" />
     <item
+        android:id="@+id/chat_jump"
+        android:title="Jump to date"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/chat_admin"
+        android:title="Manage group / channel"
+        android:visible="false"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/chat_music"
+        android:title="Audio files"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/chat_report"
+        android:title="Report"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/chat_pins"
+        android:title="Pinned messages"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/chat_clear"
         android:title="Clear history"
         app:showAsAction="never" />

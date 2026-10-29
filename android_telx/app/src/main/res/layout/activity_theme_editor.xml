@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@color/window_bg">
+    <androidx.appcompat.widget.Toolbar android:id="@+id/theme_toolbar"
+        android:layout_width="match_parent" android:layout_height="?attr/actionBarSize"
+        android:background="@color/toolbar_bg" android:elevation="6dp">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Theme editor" android:textSize="19sp" android:textStyle="bold" android:textColor="@color/text_primary" />
+    </androidx.appcompat.widget.Toolbar>
+    <ScrollView android:layout_width="match_parent" android:layout_height="match_parent">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:padding="16dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Accent color" android:textSize="15sp" android:textStyle="bold"
+                android:textColor="@color/text_primary" android:paddingBottom="12dp" />
+            <LinearLayout android:id="@+id/theme_swatches" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" />
+            <EditText android:id="@+id/theme_hex" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:hint="#3390EC" android:textSize="15sp" android:padding="12dp" android:layout_marginTop="16dp"
+                android:background="@drawable/bg_input" android:inputType="text"
+                android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Preview" android:textSize="15sp" android:textStyle="bold"
+                android:textColor="@color/text_primary" android:paddingTop="20dp" />
+            <View android:id="@+id/theme_preview_bubble" android:layout_width="200dp" android:layout_height="72dp"
+                android:background="@drawable/bg_bubble_mine" android:layout_marginTop="12dp" />
+            <TextView android:id="@+id/theme_preview_text" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="  This is how your bubbles will look  " android:textSize="15sp" android:textColor="#FFFFFF"
+                android:layout_marginTop="-60dp" android:paddingStart="10dp" android:paddingEnd="10dp" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:layout_marginTop="28dp">
+                <TextView android:id="@+id/theme_apply" android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:text="Apply" android:textSize="15sp" android:textStyle="bold"
+                    android:textColor="#FFFFFF" android:background="@drawable/btn_primary_bg" android:gravity="center"
+                    android:padding="14dp" />
+                <TextView android:id="@+id/theme_reset" android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:text="Reset" android:textSize="15sp" android:textStyle="bold"
+                    android:textColor="@color/tg_blue" android:background="@drawable/bg_input" android:gravity="center"
+                    android:padding="14dp" android:layout_marginStart="12dp" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:layout_marginTop="12dp">
+                <TextView android:id="@+id/theme_export" android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:text="Export" android:textSize="14sp"
+                    android:textColor="@color/tg_blue" android:gravity="center" android:padding="12dp" />
+                <TextView android:id="@+id/theme_import" android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:text="Import" android:textSize="14sp"
+                    android:textColor="@color/tg_blue" android:gravity="center" android:padding="12dp" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

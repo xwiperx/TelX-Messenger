@@ -15,6 +15,10 @@ case 'get': {
     $is_me = (int)$u['uid'] === me_id();
     $out = user_public($u, $is_me);
     $out['is_me'] = $is_me;
+    // v6 badges + self-destruct timer
+    $out['verified'] = (int)($u['verified'] ?? 0) === 1;
+    $out['scam'] = (int)($u['scam'] ?? 0) === 1;
+    if ($is_me) $out['self_destruct_months'] = (int)($u['self_destruct_months'] ?? 0);
     $st = db()->prepare('SELECT id FROM stories WHERE user_id = ? AND expires_at > UTC_TIMESTAMP() LIMIT 1');
     $st->execute([(int)$u['uid']]);
     $out['has_story'] = (bool)$st->fetch();

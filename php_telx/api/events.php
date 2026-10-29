@@ -18,6 +18,19 @@ if (random_int(1, 20) === 1) {
     db()->prepare('DELETE FROM events WHERE user_id = ? AND created_at < UTC_TIMESTAMP() - INTERVAL 2 DAY')->execute([$uid]);
 }
 
+// v6: account self-destruct GC — users who chose a timer and stayed inactive
+if (random_int(1, 200) === 1) {
+    $st = db()->query("SELECT id FROM users WHERE self_destruct_months > 0
+                        AND last_seen < UTC_TIMESTAMP() - INTERVAL self_destruct_months MONTH LIMIT 20");
+    foreach ($st->fetchAll() as $dead) {
+        $did = (int)$dead['id'];
+        // keep their past messages visible as a deleted account, then cascade the rest
+        db()->prepare('UPDATE messages SET sender_id = NULL WHERE sender_id = ?')->execute([$did]);
+        db()->prepare('DELETE FROM users WHERE id = ?')->execute([$did]);
+    }
+    // v6: expire old invite links are only hidden on read; nothing to GC here
+}
+
 $deadline = time() + $wait;
 $events = [];
 

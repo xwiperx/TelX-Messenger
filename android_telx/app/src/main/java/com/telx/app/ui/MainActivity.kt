@@ -216,6 +216,10 @@ class MainActivity : AppCompatActivity() {
             }
             else -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         }
+        // v6: Material You dynamic colors (Android 12+) unless the user disabled them
+        if (Prefs.materialYou) {
+            com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
+        }
     }
 
     private fun show(f: Fragment) {
@@ -240,6 +244,8 @@ class MainActivity : AppCompatActivity() {
         // re-evaluate timed night mode when returning to the app
         if (Prefs.theme == 3) applyTheme()
         Events.addListener(eventsListener)
+        // v6: in-app update check (silent, at most once per version)
+        com.telx.app.net.UpdateChecker.check(this)
     }
 
     override fun onPause() {

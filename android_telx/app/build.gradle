@@ -11,8 +11,12 @@ android {
         applicationId "com.telx.app"
         minSdk 23
         targetSdk 34
-        versionCode 5
-        versionName "5.0"
+        versionCode 6
+        versionName "6.0"
+    }
+
+    buildFeatures {
+        buildConfig true
     }
 
     // Permanent release signature — the SAME key for every future update,

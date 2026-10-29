@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="#000000">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:background="#1B1D22" android:elevation="6dp">
+        <ImageView android:id="@+id/vt_back" android:layout_width="42dp" android:layout_height="42dp"
+            android:src="@drawable/ic_close" app:tint="#FFFFFF" android:padding="10dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless" android:contentDescription="close" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:text="Trim video" android:textSize="17sp" android:textStyle="bold" android:textColor="#FFFFFF" />
+        <TextView android:id="@+id/vt_save" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="SAVE" android:textSize="14sp" android:textStyle="bold" android:textColor="#3390EC"
+            android:paddingStart="16dp" android:paddingEnd="16dp" android:paddingTop="12dp" android:paddingBottom="12dp" />
+    </LinearLayout>
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+        <VideoView android:id="@+id/vt_preview" android:layout_width="match_parent"
+            android:layout_height="match_parent" android:layout_gravity="center" />
+        <ImageView android:id="@+id/vt_play" android:layout_width="52dp" android:layout_height="52dp"
+            android:src="@drawable/ic_pause" app:tint="#FFFFFF" android:layout_gravity="center"
+            android:background="@drawable/badge_unread" android:padding="12dp"
+            android:contentDescription="play/pause" />
+        <ProgressBar android:id="@+id/vt_progress" android:layout_width="40dp" android:layout_height="40dp"
+            android:layout_gravity="center" android:visibility="gone" />
+    </FrameLayout>
+    <TextView android:id="@+id/vt_range" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textColor="#FFFFFF" android:textSize="13sp" android:gravity="center" android:padding="8dp" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="12dp" android:background="#1B1D22">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Start" android:textSize="12sp" android:textColor="#ABABAB" />
+        <SeekBar android:id="@+id/vt_start" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:progressTint="#3390EC" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="End" android:textSize="12sp" android:textColor="#ABABAB" />
+        <SeekBar android:id="@+id/vt_end" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:progressTint="#3390EC" />
+    </LinearLayout>
+</LinearLayout>

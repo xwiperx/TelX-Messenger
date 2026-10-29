@@ -31,6 +31,14 @@ class AvatarView @JvmOverloads constructor(
     init {
         image.scaleType = ImageView.ScaleType.CENTER_CROP
         image.visibility = GONE
+        // FIX: clip the loaded photo to a perfect circle everywhere
+        // (profile, channels, stories, chat headers — avatars were rendering square)
+        image.outlineProvider = object : android.view.ViewOutlineProvider() {
+            override fun getOutline(view: android.view.View, outline: android.graphics.Outline) {
+                outline.setOval(0, 0, view.width, view.height)
+            }
+        }
+        image.clipToOutline = true
         letter.gravity = Gravity.CENTER
         letter.setTextColor(Color.WHITE)
         letter.typeface = android.graphics.Typeface.DEFAULT_BOLD
