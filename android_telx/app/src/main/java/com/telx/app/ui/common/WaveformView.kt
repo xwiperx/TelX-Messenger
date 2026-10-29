@@ -28,8 +28,8 @@ class WaveformView @JvmOverloads constructor(
     fun seedFrom(id: Int) {
         val seed = abs(id) % 97 + 3
         heights = FloatArray(bars) { i ->
-            val v = abs(sin(seed * 0.61 + i * 1.27)) * 0.72f +
-                abs(sin(seed * 0.13 + i * 0.37)) * 0.28f
+            val v = abs(sin(seed * 0.61 + i * 1.27)).toFloat() * 0.72f +
+                abs(sin(seed * 0.13 + i * 0.37)).toFloat() * 0.28f
             0.18f + v * 0.82f
         }
         invalidate()

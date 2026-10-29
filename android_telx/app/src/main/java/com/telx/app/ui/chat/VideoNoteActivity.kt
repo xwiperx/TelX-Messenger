@@ -14,6 +14,7 @@ import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.telx.app.R
 import com.telx.app.net.Api
 import com.telx.app.ui.common.Helpers
 import kotlinx.coroutines.CoroutineScope

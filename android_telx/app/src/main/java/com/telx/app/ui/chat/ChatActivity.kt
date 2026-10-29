@@ -111,6 +111,31 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
     private val pickFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) handlePicked(uri, kind = "file")
     }
+    private val pickSticker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) addStickerToPack(uri)
+    }
+    private var stickerPackTarget = 0
+
+    /** Called from the sticker sheet: pick an image to add into one of my packs. */
+    fun launchStickerPick(packId: Int) {
+        stickerPackTarget = packId
+        pickSticker.launch(arrayOf("image/*"))
+    }
+
+    private fun addStickerToPack(uri: Uri) {
+        ui.launch {
+            try {
+                val f = copyToCache(uri, "sticker")
+                if (f == null) { Helpers.toast(this@ChatActivity, "Could not read image"); return@launch }
+                val up = withContext(Dispatchers.IO) { Api.upload("photo", f) }
+                withContext(Dispatchers.IO) { Api.stickerAdd(stickerPackTarget, up.optString("rel")) }
+                Helpers.toast(this@ChatActivity, "Sticker added to pack")
+                f.delete()
+            } catch (e: Exception) {
+                Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Failed to add sticker")
+            }
+        }
+    }
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) startRecording() else Helpers.toast(this, "Microphone permission needed for voice messages")
     }
@@ -196,7 +221,7 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                         d.setBounds(0, 0, d.intrinsicWidth, d.intrinsicHeight)
                         d.setTint(0xFF3390EC.toInt())
                         val bounds = vh.itemView
-                        val x = if (dx > 0) 48f else bounds.width - 48 - d.intrinsicWidth
+                        val x = if (dx > 0) 48f else (bounds.width - 48 - d.intrinsicWidth).toFloat()
                         c.save()
                         c.translate(x, bounds.top + bounds.height / 2f - d.intrinsicHeight / 2f)
                         c.clipRect(0, 0, bounds.width, bounds.height)
@@ -729,6 +754,57 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
             m.hasMedia -> "Media message"
             else -> "Message"
         }
+    }
+
+    /** Long-press send → Telegram-style schedule message dialog. */
+    private fun scheduleMessage() {
+        val options = arrayOf("In 1 hour", "In 8 hours", "Tomorrow morning (9 AM)", "Pick below…")
+        val base = System.currentTimeMillis() / 1000
+        val cal = java.util.Calendar.getInstance()
+        cal.timeInMillis = base * 1000
+        cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 9)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        val presets = longArrayOf(base + 3600, base + 8 * 3600, cal.timeInMillis / 1000)
+        var picked = presets[0]
+        val v = layoutInflater.inflate(R.layout.dialog_schedule, null)
+        val etTime = v.findViewById<EditText>(R.id.et_schedule_time)
+        val preview = v.findViewById<TextView>(R.id.schedule_preview)
+        fun updPreview() {
+            val d = java.text.SimpleDateFormat("EEE, d MMM yyyy HH:mm", java.util.Locale.US)
+                .format(java.util.Date(picked * 1000))
+            preview.text = "Will send: $d"
+        }
+        updPreview()
+        AlertDialog.Builder(this)
+            .setTitle("Schedule message")
+            .setSingleChoiceItems(options, 0) { _, which ->
+                if (which < 3) { picked = presets[which]; updPreview(); etTime.visibility = View.GONE }
+                else etTime.visibility = View.VISIBLE
+            }
+            .setView(v)
+            .setPositiveButton("Schedule") { _, _ ->
+                val custom = etTime.text?.toString()?.toLongOrNull()
+                if (etTime.visibility == View.VISIBLE) {
+                    if (custom == null || custom <= System.currentTimeMillis() / 1000) {
+                        Helpers.toast(this, "Enter a future epoch time"); return@setPositiveButton
+                    }
+                    picked = custom
+                }
+                val t = input.text?.toString()?.trim() ?: ""
+                if (t.isEmpty()) { Helpers.toast(this, "Type a message first"); return@setPositiveButton }
+                ui.launch {
+                    try {
+                        withContext(Dispatchers.IO) { Api.send(chatId, "text", t, scheduledTs = picked) }
+                        Helpers.toast(this@ChatActivity, "Message scheduled")
+                    } catch (e: Exception) {
+                        Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Schedule failed")
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun startDownloadTicker() {
