@@ -1027,7 +1027,8 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
             items.add("Edit" to { showReplyFor(m, true) })
         // v6: multi-pin (toggle per message)
         if (m.id > 0) {
-            val canPin = chat?.isAdmin == true || (chat != null && !chat.isGroup && !chat.isChannel)
+            val c = chat
+            val canPin = c?.isAdmin == true || (c != null && !c.isGroup && !c.isChannel)
             if (canPin) {
                 if (m.pinned) items.add("Unpin" to { pinMsg(m.id, false) })
                 else items.add("Pin" to { pinMsg(m.id, true) })

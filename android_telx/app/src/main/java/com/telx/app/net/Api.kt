@@ -2,6 +2,7 @@ package com.telx.app.net
 
 import com.telx.app.data.ApiErr
 import com.telx.app.data.Chat
+import com.telx.app.data.Message
 import com.telx.app.data.Prefs
 import org.json.JSONArray
 import org.json.JSONObject

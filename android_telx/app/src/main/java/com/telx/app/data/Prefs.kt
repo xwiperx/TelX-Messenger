@@ -126,7 +126,7 @@ object Prefs {
 
     /** selected launcher icon alias (default | dark | teal) */
     var launcherIcon: String
-        get() = sp.getString("launcher_icon", "default")
+        get() = sp.getString("launcher_icon", "default") ?: "default"
         set(v) = sp.edit().putString("launcher_icon", v).apply()
 
     /** Material You dynamic colors (Android 12+), overrides custom accent */
