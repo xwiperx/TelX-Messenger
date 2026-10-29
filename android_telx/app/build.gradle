@@ -19,7 +19,7 @@ android {
     // so new versions install directly over the old app (no uninstall needed).
     signingConfigs {
         release {
-            storeFile file("keystore/telx-release.jks")
+            storeFile file("../keystore/telx-release.jks")
             storePassword "TelX2026m021"
             keyAlias "telx"
             keyPassword "TelX2026m021"
