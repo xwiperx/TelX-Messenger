@@ -1,33 +1,80 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:background="@color/window_bg">
+    android:orientation="vertical" android:background="@color/window_bg"
+    android:layoutDirection="ltr">
     <androidx.appcompat.widget.Toolbar android:id="@+id/up_toolbar"
         android:layout_width="match_parent" android:layout_height="?attr/actionBarSize"
         android:background="@color/toolbar_bg" />
-    <ScrollView android:layout_width="match_parent" android:layout_height="match_parent">
+    <ScrollView android:layout_width="match_parent" android:layout_height="match_parent"
+        android:fillViewport="true">
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:orientation="vertical" android:gravity="center_horizontal" android:padding="24dp">
-            <com.telx.app.ui.common.AvatarView android:id="@+id/up_avatar" android:layout_width="110dp" android:layout_height="110dp" android:layout_marginTop="16dp" />
+            android:orientation="vertical" android:gravity="center_horizontal">
+            <com.telx.app.ui.common.AvatarView android:id="@+id/up_avatar" android:layout_width="112dp" android:layout_height="112dp"
+                android:layout_marginTop="28dp" />
             <TextView android:id="@+id/up_name" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:layout_marginTop="16dp" android:textSize="22sp" android:textStyle="bold" android:textColor="@color/text_primary" />
+                android:layout_marginTop="16dp" android:textSize="24sp" android:textStyle="bold" android:textColor="@color/text_primary"
+                android:paddingStart="24dp" android:paddingEnd="24dp" android:gravity="center" android:maxLines="2" android:ellipsize="end" />
             <TextView android:id="@+id/up_status" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:layout_marginTop="2dp" android:textSize="13sp" android:textColor="@color/tg_blue" />
-            <TextView android:id="@+id/up_username" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:layout_marginTop="12dp" android:textSize="15sp" android:textColor="@color/tg_blue" />
-            <TextView android:id="@+id/up_bio" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:layout_marginTop="6dp" android:textSize="14sp" android:textColor="@color/text_secondary" android:gravity="center" />
+                android:layout_marginTop="3dp" android:textSize="14sp" android:textColor="@color/tg_blue" />
+
+            <!-- Telegram-style info rows -->
+            <LinearLayout android:id="@+id/up_row_username"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:layout_marginTop="22dp"
+                android:paddingStart="18dp" android:paddingEnd="18dp" android:paddingTop="8dp" android:paddingBottom="8dp"
+                android:background="?android:attr/selectableItemBackground">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical">
+                    <ImageView android:layout_width="24dp" android:layout_height="24dp"
+                        android:src="@drawable/ic_at" app:tint="@color/tg_blue" android:contentDescription="username" />
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                        android:orientation="vertical" android:layout_marginStart="20dp">
+                        <TextView android:id="@+id/up_username" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:textSize="15sp" android:textColor="@color/tg_blue" android:maxLines="1" android:ellipsize="end" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:textSize="12sp" android:textColor="@color/text_secondary" android:text="Username" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+            <View android:layout_width="match_parent" android:layout_height="1dp"
+                android:background="@color/divider" android:layout_marginStart="62dp" />
+            <LinearLayout android:id="@+id/up_row_bio"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="18dp" android:paddingEnd="18dp" android:paddingTop="8dp" android:paddingBottom="8dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="horizontal" android:gravity="center_vertical">
+                    <ImageView android:layout_width="24dp" android:layout_height="24dp"
+                        android:src="@drawable/ic_info" app:tint="@color/tg_blue" android:contentDescription="bio" />
+                    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                        android:orientation="vertical" android:layout_marginStart="20dp">
+                        <TextView android:id="@+id/up_bio" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:textSize="15sp" android:textColor="@color/text_primary" android:maxLines="4" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:textSize="12sp" android:textColor="@color/text_secondary" android:text="Bio" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
             <com.google.android.material.button.MaterialButton android:id="@+id/up_message"
-                android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="24dp"
+                android:layout_width="match_parent" android:layout_height="50dp"
+                android:layout_marginStart="24dp" android:layout_marginEnd="24dp" android:layout_marginTop="22dp"
                 android:text="Send Message" app:cornerRadius="25dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/up_edit"
+                android:layout_width="match_parent" android:layout_height="50dp"
+                android:layout_marginStart="24dp" android:layout_marginEnd="24dp" android:layout_marginTop="22dp"
+                android:text="Edit Profile" app:cornerRadius="25dp" android:visibility="gone" />
             <com.google.android.material.button.MaterialButton android:id="@+id/up_contact"
                 style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="10dp"
+                android:layout_width="match_parent" android:layout_height="50dp"
+                android:layout_marginStart="24dp" android:layout_marginEnd="24dp" android:layout_marginTop="10dp"
                 android:text="Add Contact" app:cornerRadius="25dp" />
-            <com.google.android.material.button.MaterialButton android:id="@+id/up_block"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="10dp"
-                android:text="Block" app:cornerRadius="25dp" />
+            <TextView android:id="@+id/up_block"
+                android:layout_width="match_parent" android:layout_height="52dp"
+                android:gravity="center" android:text="Block user" android:textSize="15sp"
+                android:textColor="@color/error_red" android:layout_marginTop="10dp"
+                android:background="?android:attr/selectableItemBackground" />
         </LinearLayout>
     </ScrollView>
 </LinearLayout>
