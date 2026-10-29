@@ -26,6 +26,18 @@ case 'get': {
         $out['blocked_by_me'] = is_blocked($me_id_, (int)$u['uid']);
         $out['blocked_me'] = is_blocked((int)$u['uid'], $me_id_);
     }
+    // phone visible only per privacy setting (always visible to self)
+    $phoneVis = (int)($u['privacy_phone'] ?? 0);
+    $isContact = !empty($out['is_contact']);
+    $out['phone'] = ($is_me || $phoneVis === 0 || ($phoneVis === 1 && $isContact)) ? (string)($u['phone'] ?? '') : '';
+    if (!$is_me) {
+        $out['privacy_last_seen'] = (int)($u['privacy_last_seen'] ?? 0);
+        // enforce last-seen / photo privacy server-side
+        $pLS = (int)($u['privacy_last_seen'] ?? 0);
+        if ($pLS === 2 || ($pLS === 1 && !$isContact)) { $out['online'] = false; $out['last_ts'] = 0; }
+        $pPh = (int)($u['privacy_photo'] ?? 0);
+        if ($pPh === 2 || ($pPh === 1 && !$isContact)) $out['avatar'] = null;
+    }
     ok(['user' => $out]);
 }
 
@@ -35,6 +47,10 @@ case 'update': {
     $bio = trim(p('bio') ?? ''); $username = trim(p('username') ?? '');
     $privacy = pint('privacy_lock');
     $avatarRel = p('avatar_rel');   // null = not provided, '' = remove
+    $phone = p('phone');
+    $pLastSeen = p('privacy_last_seen');
+    $pPhone = p('privacy_phone');
+    $pPhoto = p('privacy_photo');
     $updates = [];
     if ($first !== '') { if (mb_strlen($first) < 2 || mb_strlen($first) > 40) fail('invalid', 'First name must be 2-40 chars'); $updates['first_name'] = $first; }
     if ($last !== null) { if (mb_strlen($last) > 40) fail('invalid', 'Last name too long'); $updates['last_name'] = $last; }
@@ -46,6 +62,20 @@ case 'update': {
     }
     if ($avatarRel !== null) $updates['avatar'] = ($avatarRel === '' ? null : $avatarRel);
     $updates['privacy_lock'] = $privacy ? 1 : 0;
+    if ($phone !== null) {
+        $phone = preg_replace('/[^0-9+]/', '', $phone);
+        if ($phone === '') $updates['phone'] = null;
+        else {
+            if (strlen($phone) < 7 || strlen($phone) > 20) fail('invalid', 'Phone number looks invalid');
+            $chk = db()->prepare('SELECT id FROM users WHERE phone = ? AND id <> ?');
+            $chk->execute([$phone, $me['uid']]);
+            if ($chk->fetch()) fail('phone_taken', 'This phone number is already used');
+            $updates['phone'] = $phone;
+        }
+    }
+    if ($pLastSeen !== null) $updates['privacy_last_seen'] = max(0, min(2, (int)$pLastSeen));
+    if ($pPhone !== null)    $updates['privacy_phone'] = max(0, min(2, (int)$pPhone));
+    if ($pPhoto !== null)     $updates['privacy_photo'] = max(0, min(2, (int)$pPhoto));
     $set = implode(',', array_map(fn($k) => "$k = ?", array_keys($updates)));
     $st = db()->prepare("UPDATE users SET $set WHERE id = ?");
     $st->execute([...array_values($updates), $me['uid']]);

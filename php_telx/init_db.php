@@ -11,11 +11,15 @@ $tables = [
   first_name VARCHAR(64) NOT NULL,
   last_name VARCHAR(64) NOT NULL DEFAULT '',
   username VARCHAR(32) NOT NULL UNIQUE,
+  phone VARCHAR(24) NULL DEFAULT NULL,
   email VARCHAR(190) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   avatar VARCHAR(255) NULL,
   bio VARCHAR(200) NOT NULL DEFAULT '',
   privacy_lock TINYINT(1) NOT NULL DEFAULT 0,
+  privacy_last_seen TINYINT NOT NULL DEFAULT 0,
+  privacy_phone TINYINT NOT NULL DEFAULT 0,
+  privacy_photo TINYINT NOT NULL DEFAULT 0,
   twofa_enabled TINYINT(1) NOT NULL DEFAULT 0,
   last_seen DATETIME NULL,
   created_at DATETIME NOT NULL,
@@ -107,7 +111,7 @@ $tables = [
   chat_id BIGINT UNSIGNED NOT NULL,
   sender_id BIGINT UNSIGNED NULL,
   sender_name VARCHAR(96) NOT NULL DEFAULT '',
-  type ENUM('text','photo','file','voice','video','sticker','gif','system') NOT NULL DEFAULT 'text',
+  type ENUM('text','photo','file','voice','video','sticker','gif','system','video_note','location','contact') NOT NULL DEFAULT 'text',
   text MEDIUMTEXT NULL,
   media VARCHAR(255) NULL,
   thumb VARCHAR(255) NULL,
@@ -116,6 +120,7 @@ $tables = [
   media_duration INT UNSIGNED NOT NULL DEFAULT 0,
   sticker VARCHAR(64) NULL,
   link_json TEXT NULL,
+  media_json TEXT NULL,
   reply_to BIGINT UNSIGNED NULL,
   fwd_from_user_id BIGINT UNSIGNED NULL,
   fwd_name VARCHAR(96) NOT NULL DEFAULT '',
@@ -193,6 +198,45 @@ $tables = [
   created_at DATETIME NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+"message_views" => "CREATE TABLE IF NOT EXISTS message_views (
+  message_id INT NOT NULL,
+  user_id INT NOT NULL,
+  viewed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (message_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+"sticker_packs" => "CREATE TABLE IF NOT EXISTS sticker_packs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  title VARCHAR(40) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+"stickers" => "CREATE TABLE IF NOT EXISTS stickers (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  pack_id INT NOT NULL,
+  file VARCHAR(255) NOT NULL,
+  added_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_pack (pack_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+"chat_folders" => "CREATE TABLE IF NOT EXISTS chat_folders (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  name VARCHAR(32) NOT NULL,
+  emoji VARCHAR(8) NOT NULL DEFAULT '',
+  flags INT NOT NULL DEFAULT 0,
+  sort INT NOT NULL DEFAULT 0,
+  UNIQUE KEY uq_folder (user_id, name),
+  KEY idx_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+"folder_chats" => "CREATE TABLE IF NOT EXISTS folder_chats (
+  folder_id INT NOT NULL,
+  chat_id INT NOT NULL,
+  PRIMARY KEY (folder_id, chat_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 ];
 
 if ($fresh) {
@@ -204,7 +248,7 @@ if ($fresh) {
 $done = [];
 foreach ($tables as $name => $sql) { db()->exec($sql); $done[] = $name; }
 
-foreach (['uploads','uploads/photo','uploads/file','uploads/voice','uploads/video','uploads/avatar','uploads/group','uploads/story','uploads/gif','uploads/links','uploads/enc'] as $d) {
+foreach (['uploads','uploads/photo','uploads/file','uploads/voice','uploads/video','uploads/avatar','uploads/group','uploads/story','uploads/gif','uploads/links','uploads/enc','uploads/stickers','uploads/stickers/builtin'] as $d) {
     if (!is_dir(__DIR__ . '/' . $d)) @mkdir(__DIR__ . '/' . $d, 0777, true);
 }
 

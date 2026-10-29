@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -32,6 +33,29 @@ class ContactsFragment : Fragment(), Events.Listener {
     private lateinit var empty: TextView
     private val contacts = ArrayList<User>()
     private lateinit var adapter: ContactsAdapter
+
+    /** pick an image containing a TelX profile QR → decode → add contact */
+    private val pickQr = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@registerForActivityResult
+        val picked = uri
+        ui.launch {
+            try {
+                val bmp = withContext(Dispatchers.IO) {
+                    android.graphics.BitmapFactory.decodeStream(
+                        requireContext().contentResolver.openInputStream(picked))
+                }
+                val text = bmp?.let { com.telx.app.ui.common.QrHelper.decode(it) }
+                val uname = text?.takeIf { it.startsWith("telx:@") }?.removePrefix("telx:@")
+                if (uname.isNullOrEmpty()) {
+                    Helpers.toast(context, "No TelX QR code found in this image")
+                } else {
+                    withContext(Dispatchers.IO) { Api.contactAddByUsername(uname) }
+                    Helpers.toast(context, "Contact added")
+                    load()
+                }
+            } catch (e: Exception) { Helpers.toast(context, e.message ?: "Failed") }
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -70,15 +94,20 @@ class ContactsFragment : Fragment(), Events.Listener {
 
     private fun showAddDialog() {
         val v = layoutInflater.inflate(R.layout.dialog_add_contact, null)
-        val input = v.findViewById<TextInputEditText>(R.id.et_username)
+        val etUser = v.findViewById<TextInputEditText>(R.id.et_contact_username)
+        val etPhone = v.findViewById<TextInputEditText>(R.id.et_contact_phone)
+        v.findViewById<View>(R.id.btn_scan_qr).setOnClickListener { pickQr.launch(arrayOf("image/*")) }
         AlertDialog.Builder(requireContext())
             .setTitle("Add contact")
             .setView(v)
             .setPositiveButton("Add") { _, _ ->
-                val u = input.text?.toString()?.trim()?.removePrefix("@") ?: ""
-                if (u.isNotEmpty()) ui.launch {
+                val u = etUser.text?.toString()?.trim()?.removePrefix("@") ?: ""
+                val p = etPhone.text?.toString()?.trim() ?: ""
+                if (u.isEmpty() && p.isEmpty()) { Helpers.toast(context, "Enter a username or phone"); return@setPositiveButton }
+                ui.launch {
                     try {
-                        withContext(Dispatchers.IO) { Api.contactAddByUsername(u) }
+                        if (u.isNotEmpty()) withContext(Dispatchers.IO) { Api.contactAddByUsername(u) }
+                        else withContext(Dispatchers.IO) { Api.contactAddByPhone(p) }
                         Helpers.toast(context, "Contact added")
                         load()
                     } catch (e: Exception) { Helpers.toast(context, e.message ?: "Failed") }

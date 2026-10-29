@@ -58,6 +58,45 @@ object Prefs {
         get() = sp.getBoolean("privacy_lock", false)
         set(v) = sp.edit().putBoolean("privacy_lock", v).apply()
 
+    /** chat bubble text size multiplier (1.0 = default, 0.85 … 1.4) */
+    var chatFontScale: Float
+        get() = sp.getFloat("chat_font_scale", 1.0f)
+        set(v) = sp.edit().putFloat("chat_font_scale", v).apply()
+
+    /** custom accent color for MY bubbles, "" = Telegram blue */
+    var bubbleAccent: String
+        get() = sp.getString("bubble_accent", "") ?: ""
+        set(v) = sp.edit().putString("bubble_accent", v).apply()
+
+    /** app-lock PIN (SHA-256 hex), empty = lock disabled */
+    var appLockPin: String
+        get() = sp.getString("app_lock_pin", "") ?: ""
+        set(v) = sp.edit().putString("app_lock_pin", v).apply()
+
+    /** timestamp when the app was last unlocked (re-lock after 5 min in background) */
+    var lastUnlockedAt: Long
+        get() = sp.getLong("last_unlocked_at", 0)
+        set(v) = sp.edit().putLong("last_unlocked_at", v).apply()
+
+    /** auto-download media on Wi-Fi / mobile data */
+    var autoDownloadWifi: Boolean
+        get() = sp.getBoolean("auto_dl_wifi", true)
+        set(v) = sp.edit().putBoolean("auto_dl_wifi", v).apply()
+
+    var autoDownloadMobile: Boolean
+        get() = sp.getBoolean("auto_dl_mobile", false)
+        set(v) = sp.edit().putBoolean("auto_dl_mobile", v).apply()
+
+    /** auto-download max size in MB (bigger files always need a tap) */
+    var autoDownloadMaxMb: Int
+        get() = sp.getInt("auto_dl_max_mb", 20)
+        set(v) = sp.edit().putInt("auto_dl_max_mb", v).apply()
+
+    /** multi-account registry — JSON array of [{id, token, name, username, avatar}] */
+    var accounts: String
+        get() = sp.getString("accounts", "[]") ?: "[]"
+        set(v) = sp.edit().putString("accounts", v).apply()
+
     fun clearSession() {
         token = ""
         sinceId = 0

@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.telx.app.R
 import com.telx.app.data.Message
+import com.telx.app.data.Prefs
 import com.telx.app.ui.common.Helpers
 
 /**
@@ -28,6 +29,7 @@ class MessageAdapter(
     var onImageClick: ((Message) -> Unit)? = null
     var onRetryClick: ((Message) -> Unit)? = null
     var onReactClick: ((Message, String?) -> Unit)? = null
+    var onFileClick: ((Message) -> Unit)? = null
 
     /** show sender names above other people's messages (group / channel) */
     @Volatile var showSenderNames: Boolean = false
@@ -39,6 +41,8 @@ class MessageAdapter(
     @Volatile var peerDeliveredId: Int = 0
 
     companion object {
+        /** messages the user explicitly tapped to download (bypasses auto-download policy) */
+        val downloadedOverride = HashSet<Int>()
         const val TYPE_MINE = 0
         const val TYPE_THEIR = 1
         const val TYPE_SYSTEM = 2
@@ -49,6 +53,13 @@ class MessageAdapter(
 
     // row mapping: row -> message index, -1 = date header
     private var rowMap: IntArray = IntArray(0)
+
+    /** message at a recycler row (or null for date/system rows) */
+    fun messageAtRow(position: Int): Message? {
+        val map = rebuildMap()
+        val mi = if (position < map.size) map[position] else -1
+        return if (mi >= 0) items[mi] else null
+    }
 
     private fun rebuildMap(): IntArray {
         val out = ArrayList<Int>(items.size + 8)
@@ -139,9 +150,13 @@ class MessageAdapter(
         private val fileRow: View = v.findViewById(R.id.msg_file_row)
         private val fileName: TextView = v.findViewById(R.id.msg_file_name)
         private val fileSize: TextView = v.findViewById(R.id.msg_file_size)
+        private val fileProgress: android.widget.ProgressBar? = try { v.findViewById(R.id.msg_file_progress) } catch (_: Exception) { null }
+        private val fileState: TextView? = try { v.findViewById(R.id.msg_file_state) } catch (_: Exception) { null }
         private val voiceRow: View = v.findViewById(R.id.msg_voice_row)
         private val voiceBtn: ImageView = v.findViewById(R.id.msg_voice_btn)
         private val voiceDur: TextView = v.findViewById(R.id.msg_voice_duration)
+        private val voiceWave: com.telx.app.ui.common.WaveformView? =
+            try { v.findViewById(R.id.msg_voice_wave) } catch (_: Exception) { null }
         private val text: TextView = v.findViewById(R.id.msg_text)
         private val linkBlock: View = v.findViewById(R.id.msg_link_block)
         private val linkSite: TextView = v.findViewById(R.id.msg_link_site)
@@ -149,10 +164,23 @@ class MessageAdapter(
         private val linkDesc: TextView = v.findViewById(R.id.msg_link_desc)
         private val linkImage: ImageView = v.findViewById(R.id.msg_link_image)
         private val edited: TextView = v.findViewById(R.id.msg_edited)
+        private val views: TextView? = try { v.findViewById(R.id.msg_views) } catch (_: Exception) { null }
         private val time: TextView = v.findViewById(R.id.msg_time)
         private val ticks: ImageView = v.findViewById(R.id.msg_ticks)
         private val reactions: LinearLayout = v.findViewById(R.id.msg_reactions)
         private val status: ImageView = v.findViewById(R.id.msg_status)
+        private val bubble: View? = try { v.findViewById(R.id.msg_bubble) } catch (_: Exception) { null }
+        private val stickerImg: ImageView = v.findViewById(R.id.msg_sticker_img)
+        private val locBlock: View = v.findViewById(R.id.msg_location_block)
+        private val locTitle: TextView = v.findViewById(R.id.msg_location_title)
+        private val locCoords: TextView = v.findViewById(R.id.msg_location_coords)
+        private val locOpen: TextView = v.findViewById(R.id.msg_location_open)
+        private val locImg: ImageView = v.findViewById(R.id.msg_location_img)
+        private val contactBlock: View = v.findViewById(R.id.msg_contact_block)
+        private val contactInitial: TextView = v.findViewById(R.id.msg_contact_initial)
+        private val contactName: TextView = v.findViewById(R.id.msg_contact_name)
+        private val contactUsername: TextView = v.findViewById(R.id.msg_contact_username)
+        private val roundVideo: ImageView = v.findViewById(R.id.msg_round_video)
 
         fun bind(m: Message) {
             val ctx = itemView.context
@@ -189,32 +217,152 @@ class MessageAdapter(
             image.visibility = View.GONE
             fileRow.visibility = View.GONE
             voiceRow.visibility = View.GONE
+            stickerImg.visibility = View.GONE
+            locBlock.visibility = View.GONE
+            contactBlock.visibility = View.GONE
+            roundVideo.visibility = View.GONE
+            // custom accent color for my bubbles (Telegram-blue default)
+            if (m.isMine && bubble != null) {
+                val accent = Prefs.bubbleAccent
+                if (accent.isNotEmpty()) {
+                    try { bubble.background?.setTint(android.graphics.Color.parseColor(accent)) }
+                    catch (_: Exception) {}
+                }
+            }
             when (m.type) {
                 "photo", "gif", "video" -> {
                     image.visibility = View.VISIBLE
                     image.adjustViewBounds = true
                     image.maxWidth = maxW
                     val url = m.media ?: m.thumb
-                    Glide.with(image).load(url).placeholder(R.drawable.media_placeholder)
-                        .override(720).into(image)
-                    image.setOnClickListener { adapter.onImageClick?.invoke(m) }
+                    // auto-download policy: show placeholder until tapped when disabled
+                    if (Helpers.shouldAutoDownload(image.context) || m.id in downloadedOverride) {
+                        Glide.with(image).load(url).placeholder(R.drawable.media_placeholder)
+                            .override(720).into(image)
+                    } else {
+                        image.setImageResource(R.drawable.media_placeholder)
+                    }
+                    image.setOnClickListener {
+                        downloadedOverride.add(m.id)
+                        Glide.with(image).load(url).placeholder(R.drawable.media_placeholder)
+                            .override(720).into(image)
+                        adapter.onImageClick?.invoke(m)
+                    }
+                }
+                "video_note" -> {
+                    roundVideo.visibility = View.VISIBLE
+                    roundVideo.background = android.graphics.drawable.GradientDrawable().apply {
+                        shape = android.graphics.drawable.GradientDrawable.OVAL
+                        setColor(0x22000000)
+                    }
+                    roundVideo.clipToOutline = true
+                    roundVideo.setOnClickListener {
+                        m.media?.let { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse(it)).setFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    }
+                    if (m.thumb != null) Glide.with(roundVideo).load(m.thumb).centerCrop().into(roundVideo)
+                }
+                "sticker" -> {
+                    stickerImg.visibility = View.VISIBLE
+                    Glide.with(stickerImg).load(m.sticker ?: m.media).into(stickerImg)
+                }
+                "location" -> {
+                    locBlock.visibility = View.VISIBLE
+                    val mj = m.mediaJson
+                    val lat = mj?.optDouble("lat", 0.0) ?: 0.0
+                    val lng = mj?.optDouble("lng", 0.0) ?: 0.0
+                    locTitle.text = mj?.optString("title", "Location") ?: "Location"
+                    locCoords.text = "%.5f, %.5f".format(lat, lng)
+                    locImg.setOnClickListener {
+                        try { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse("geo:$lat,$lng?q=$lat,$lng"))) } catch (_: Exception) {}
+                    }
+                    locOpen.setOnClickListener {
+                        try { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse("geo:$lat,$lng?q=$lat,$lng"))) } catch (_: Exception) {}
+                    }
+                }
+                "contact" -> {
+                    contactBlock.visibility = View.VISIBLE
+                    val mj = m.mediaJson
+                    val name = mj?.optString("name", "Contact") ?: "Contact"
+                    val uname = mj?.optString("username", "") ?: ""
+                    val uid = mj?.optInt("user_id", 0) ?: 0
+                    contactInitial.text = Helpers.initials(name)
+                    contactInitial.background = android.graphics.drawable.GradientDrawable().apply {
+                        shape = android.graphics.drawable.GradientDrawable.OVAL
+                        setColor(Helpers.colorFor(uid))
+                    }
+                    contactName.text = name
+                    contactUsername.text = if (uname.isNotEmpty()) "@$uname" else ""
+                    contactBlock.setOnClickListener {
+                        if (uid > 0) ctx.startActivity(android.content.Intent(ctx,
+                            com.telx.app.ui.profile.UserProfileActivity::class.java)
+                            .putExtra("user_id", uid))
+                    }
                 }
                 "file" -> {
                     fileRow.visibility = View.VISIBLE
                     fileName.text = m.mediaName.ifEmpty { "File" }
                     fileSize.text = Helpers.fileSize(m.mediaSize)
+                    // Telegram-style download progress / pause / saved states
+                    val p = com.telx.app.media.FileDownloader.progress[m.id]
+                    if (p != null) {
+                        when {
+                            p == 100 -> {
+                                fileProgress?.visibility = View.GONE
+                                fileState?.visibility = View.VISIBLE
+                                fileState?.text = "Saved — tap to open"
+                            }
+                            p == -1 -> {
+                                fileProgress?.visibility = View.VISIBLE
+                                fileState?.visibility = View.VISIBLE
+                                fileState?.text = "Paused — tap to resume"
+                            }
+                            else -> {
+                                fileProgress?.visibility = View.VISIBLE
+                                fileProgress?.progress = p
+                                fileState?.visibility = View.VISIBLE
+                                fileState?.text = "Downloading… $p% — tap to pause"
+                            }
+                        }
+                    } else {
+                        fileProgress?.visibility = View.GONE
+                        fileState?.visibility = View.GONE
+                    }
+                    fileRow.setOnClickListener { adapter.onFileClick?.invoke(m) }
                 }
                 "voice" -> {
                     voiceRow.visibility = View.VISIBLE
                     voiceDur.text = Helpers.duration(m.mediaDuration)
                     voiceBtn.setImageResource(if (playingId == m.id) R.drawable.ic_pause else R.drawable.ic_play)
+                    voiceWave?.seedFrom(m.id)
+                    voiceWave?.setColors(
+                        if (m.isMine) 0xFFFFFFFF.toInt() else 0xFF3390EC.toInt(),
+                        if (m.isMine) 0x66FFFFFF.toInt() else 0x55808A94.toInt())
+                    if (playingId == m.id && player != null) {
+                        val p = player
+                        try {
+                            val pos = p!!.currentPosition
+                            val total = maxOf(1, p.duration)
+                            voiceWave?.setProgress(pos.toFloat() / total)
+                            voiceDur.text = Helpers.duration(pos / 1000)
+                        } catch (_: Exception) {}
+                        itemView.postDelayed({ if (playingId == m.id) adapter.notifyMessageChanged(m.id) }, 250)
+                    } else {
+                        voiceWave?.setProgress(0f)
+                    }
                     voiceBtn.setOnClickListener { toggleVoice(m, voiceBtn) }
                 }
             }
 
-            // text
+            // text (with user's chosen font scale)
             if (m.text.isEmpty()) text.visibility = View.GONE
-            else { text.visibility = View.VISIBLE; text.text = m.text }
+            else {
+                text.visibility = View.VISIBLE
+                text.text = m.text
+                text.textSize = 15.5f * Prefs.chatFontScale
+            }
 
             // link preview
             val l = m.link
@@ -235,6 +383,12 @@ class MessageAdapter(
             // meta
             edited.text = if (m.edited) "edited" else ""
             edited.visibility = if (m.edited) View.VISIBLE else View.GONE
+            if (views != null) {
+                if (m.views > 0 && m.type != "system") {
+                    views.visibility = View.VISIBLE
+                    views.text = "👁 ${m.views}"
+                } else views.visibility = View.GONE
+            }
             time.text = Helpers.timeShort(m.ts)
 
             if (m.isMine) {

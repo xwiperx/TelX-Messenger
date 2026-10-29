@@ -75,6 +75,10 @@ Say hi 👋"
         <ImageView android:id="@+id/btn_attach" android:layout_width="44dp" android:layout_height="48dp"
             android:src="@drawable/ic_attach" app:tint="@color/text_secondary" android:padding="10dp"
             android:background="?android:attr/selectableItemBackgroundBorderless" />
+        <ImageView android:id="@+id/btn_emoji" android:layout_width="40dp" android:layout_height="48dp"
+            android:src="@drawable/ic_emoji" app:tint="@color/text_secondary" android:padding="11dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Emoji" />
         <EditText android:id="@+id/chat_input" android:layout_width="0dp" android:layout_height="wrap_content"
             android:layout_weight="1" android:background="@drawable/bg_input"
             android:hint="Message" android:textSize="15sp" android:maxLines="6"

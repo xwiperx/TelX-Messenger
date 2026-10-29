@@ -9,10 +9,10 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.SeekBar
 import android.widget.TextView
-import android.widget.Switch
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import com.google.android.material.switchmaterial.SwitchMaterial
 import com.telx.app.R
 import com.telx.app.data.Prefs
 import com.telx.app.ui.common.CropActivity
@@ -48,7 +48,7 @@ class WallpaperActivity : AppCompatActivity() {
             startActivity(Intent(this, CropActivity::class.java).putExtra("mode", "rect"))
         }
 
-        val blurSwitch = findViewById<Switch>(R.id.sw_blur)
+        val blurSwitch = findViewById<SwitchMaterial>(R.id.sw_blur)
         blurSwitch.isChecked = Prefs.wallpaperBlur
         blurSwitch.setOnCheckedChangeListener { _, checked ->
             Prefs.wallpaperBlur = checked

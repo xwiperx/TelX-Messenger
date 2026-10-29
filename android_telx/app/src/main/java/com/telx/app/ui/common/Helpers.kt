@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Color
 import android.text.format.DateUtils
 import android.widget.Toast
+import com.telx.app.data.Prefs
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -42,6 +43,103 @@ object Helpers {
     }
 
     fun duration(sec: Int): String = "%d:%02d".format(sec / 60, sec % 60)
+
+    /**
+     * Telegram-style auto-download policy: cellular/metered networks follow the
+     * mobile setting, Wi-Fi and unmetered networks follow the Wi-Fi setting.
+     */
+    fun shouldAutoDownload(ctx: Context): Boolean {
+        val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+        val caps = cm?.activeNetwork?.let { cm.getNetworkCapabilities(it) }
+        val mobile = caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) == true
+        val unmetered = caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == true
+        return if (mobile && !unmetered) Prefs.autoDownloadMobile else Prefs.autoDownloadWifi
+    }
+
+    /**
+     * Telegram-style automatic image compression before upload:
+     * downscale to ≤1280px longest side, re-encode JPEG q86.
+     * GIFs / tiny files are returned untouched.
+     */
+    fun compressImage(ctx: Context, src: File): File {
+        try {
+            val name = src.name.lowercase()
+            if (name.endsWith(".gif") || src.length() < 120 * 1024) return src
+            val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeFile(src.absolutePath, opts)
+            if (opts.outWidth <= 0 || opts.outHeight <= 0) return src
+            var sample = 1
+            var w = opts.outWidth; var h = opts.outHeight
+            val maxSide = 1280
+            while (w / 2 >= maxSide || h / 2 >= maxSide) { sample *= 2; w /= 2; h /= 2 }
+            val bmp = android.graphics.BitmapFactory.decodeFile(src.absolutePath,
+                android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }) ?: return src
+            val scaled = if (maxOf(bmp.width, bmp.height) > maxSide) {
+                val sc = maxSide.toFloat() / maxOf(bmp.width, bmp.height)
+                android.graphics.Bitmap.createScaledBitmap(bmp,
+                    (bmp.width * sc).toInt(), (bmp.height * sc).toInt(), true)
+            } else bmp
+            val out = File(ctx.cacheDir, "cmp_${System.currentTimeMillis()}.jpg")
+            out.outputStream().use { scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 86, it) }
+            if (out.exists() && out.length() in 1 until src.length()) {
+                if (scaled !== bmp) scaled.recycle()
+                bmp.recycle()
+                return out
+            }
+            out.delete()
+            if (scaled !== bmp) scaled.recycle()
+            bmp.recycle()
+        } catch (_: Exception) {}
+        return src
+    }
+
+    /** Grab a video frame as a JPEG thumbnail file (for video uploads). */
+    fun videoThumb(ctx: Context, video: File): File? = try {
+        val r = android.media.MediaMetadataRetriever()
+        r.setDataSource(video.absolutePath)
+        val bmp = r.getFrameAtTime(1_000_000) ?: r.frameAtTime
+        r.release()
+        if (bmp == null) null else {
+            val maxSide = 480
+            val sc = maxSide.toFloat() / maxOf(bmp.width, bmp.height)
+            val scaled = if (sc < 1f) android.graphics.Bitmap.createScaledBitmap(bmp,
+                (bmp.width * sc).toInt(), (bmp.height * sc).toInt(), true) else bmp
+            val out = File(ctx.cacheDir, "thumb_${System.currentTimeMillis()}.jpg")
+            out.outputStream().use { scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, it) }
+            if (scaled !== bmp) scaled.recycle()
+            bmp.recycle()
+            if (out.exists() && out.length() > 0) out else null
+        }
+    } catch (_: Exception) { null }
+
+    /** Common MIME type by file extension (for opening downloads). */
+    fun mimeFor(name: String): String {
+        val ext = name.substringAfterLast('.', "").lowercase()
+        return when (ext) {
+            "jpg", "jpeg" -> "image/jpeg"
+            "png" -> "image/png"
+            "gif" -> "image/gif"
+            "webp" -> "image/webp"
+            "mp4", "m4v" -> "video/mp4"
+            "mov" -> "video/quicktime"
+            "webm" -> "video/webm"
+            "m4a", "mp4a" -> "audio/mp4"
+            "mp3" -> "audio/mpeg"
+            "ogg", "opus" -> "audio/ogg"
+            "wav" -> "audio/wav"
+            "pdf" -> "application/pdf"
+            "zip" -> "application/zip"
+            "rar" -> "application/vnd.rar"
+            "txt" -> "text/plain"
+            "json" -> "application/json"
+            "doc" -> "application/msword"
+            "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            "xls" -> "application/vnd.ms-excel"
+            "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            "apk" -> "application/vnd.android.package-archive"
+            else -> "*/*"
+        }
+    }
 
     /** Telegram-style date separator: Today / Yesterday / 14 March 2026 */
     fun dateSeparator(ts: Long): String {

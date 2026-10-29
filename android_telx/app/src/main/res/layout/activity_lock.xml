@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:gravity="center" android:background="@color/window_bg"
+    android:padding="32dp">
+    <ImageView android:layout_width="72dp" android:layout_height="72dp"
+        android:src="@drawable/ic_lock" app:tint="@color/tg_blue" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="14dp" android:text="TelX is locked" android:textSize="22sp"
+        android:textStyle="bold" android:textColor="@color/text_primary" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="6dp" android:text="Enter your PIN to continue" android:textSize="14sp"
+        android:textColor="@color/text_secondary" />
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="28dp">
+        <com.google.android.material.textfield.TextInputEditText android:id="@+id/lock_pin_input"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="PIN" android:inputType="numberPassword" android:maxLines="1" android:imeOptions="actionDone"
+            android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
+    </com.google.android.material.textfield.TextInputLayout>
+    <TextView android:id="@+id/lock_error" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="10dp" android:textColor="@color/error_red" android:textSize="13sp" />
+    <TextView android:id="@+id/lock_ok" android:layout_width="match_parent" android:layout_height="52dp"
+        android:layout_marginTop="18dp" android:gravity="center" android:text="Unlock"
+        android:textSize="16sp" android:textColor="#FFFFFF" android:background="@drawable/btn_primary_bg" />
+    <TextView android:id="@+id/lock_forgot" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="16dp" android:text="Forgot PIN?" android:textSize="13sp"
+        android:textColor="@color/tg_blue" android:padding="8dp" />
+</LinearLayout>

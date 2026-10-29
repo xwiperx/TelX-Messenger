@@ -60,6 +60,8 @@ class SettingsFragment : Fragment() {
         }
 
         bindRow(v, R.id.row_theme) { showThemeDialog() }
+        bindRow(v, R.id.row_font_size) { showFontSizeDialog() }
+        bindRow(v, R.id.row_autodownload) { showAutoDownloadDialog() }
         bindRow(v, R.id.row_wallpaper) {
             startActivity(Intent(requireContext(), com.telx.app.ui.chat.WallpaperActivity::class.java))
         }
@@ -90,7 +92,7 @@ class SettingsFragment : Fragment() {
     }
 
     private fun showThemeDialog() {
-        val options = arrayOf("System default", "Light", "Dark")
+        val options = arrayOf("System default", "Light", "Dark", "Auto by time (10 PM – 7 AM)")
         AlertDialog.Builder(requireContext())
             .setTitle("Appearance")
             .setSingleChoiceItems(options, Prefs.theme) { d, which ->
@@ -98,6 +100,52 @@ class SettingsFragment : Fragment() {
                 (activity as? MainActivity)?.applyTheme()
                 d.dismiss()
             }
+            .show()
+    }
+
+    /** Telegram-style message text size picker with live preview. */
+    private fun showFontSizeDialog() {
+        val labels = arrayOf("Small", "Default", "Medium", "Large", "Extra large")
+        val scales = floatArrayOf(0.85f, 1.0f, 1.15f, 1.3f, 1.45f)
+        var current = scales.indexOfFirst { kotlin.math.abs(it - Prefs.chatFontScale) < 0.01f }
+        if (current < 0) current = 1
+        val preview = android.widget.TextView(requireContext()).apply {
+            text = """Sample: Hello! How are you today? 🙂
+Big enough to read comfortably."""
+            setPadding(Helpers.dp(requireContext(), 24), Helpers.dp(requireContext(), 12), Helpers.dp(requireContext(), 24), Helpers.dp(requireContext(), 12))
+            textSize = 15.5f
+        }
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Message Text Size")
+            .setCustomTitle(preview)
+            .setSingleChoiceItems(labels, current) { d, which ->
+                current = which
+                Prefs.chatFontScale = scales[which]
+                preview.textSize = 15.5f * scales[which]
+                d.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** Auto-download settings: network type + max size. */
+    private fun showAutoDownloadDialog() {
+        val v = layoutInflater.inflate(R.layout.dialog_autodownload, null)
+        val swWifi = v.findViewById<SwitchMaterial>(R.id.sw_auto_wifi)
+        val swMobile = v.findViewById<SwitchMaterial>(R.id.sw_auto_mobile)
+        val etMax = v.findViewById<android.widget.EditText>(R.id.et_auto_max_mb)
+        swWifi.isChecked = Prefs.autoDownloadWifi
+        swMobile.isChecked = Prefs.autoDownloadMobile
+        etMax.setText(Prefs.autoDownloadMaxMb.toString())
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Automatic Media Download")
+            .setView(v)
+            .setPositiveButton("Save") { _, _ ->
+                Prefs.autoDownloadWifi = swWifi.isChecked
+                Prefs.autoDownloadMobile = swMobile.isChecked
+                Prefs.autoDownloadMaxMb = etMax.text?.toString()?.toIntOrNull()?.coerceIn(1, 200) ?: 20
+            }
+            .setNegativeButton("Cancel", null)
             .show()
     }
 

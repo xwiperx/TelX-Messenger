@@ -24,6 +24,10 @@ class ChatsAdapter(
     var onChatLongClick: ((Chat) -> Unit)? = null
     var onAddStory: (() -> Unit)? = null
     var onStoryClick: ((StoryGroup) -> Unit)? = null
+    var onArchivedClick: (() -> Unit)? = null
+    /** number of archived chats — when > 0 an "Archived Chats" row appears */
+    var archivedCount: Int = 0
+        set(v) { field = v; notifyDataSetChanged() }
 
     private val storiesAdapter by lazy {
         StoriesRowAdapter(stories).apply {
@@ -35,15 +39,23 @@ class ChatsAdapter(
     companion object {
         const val TYPE_STORIES = 0
         const val TYPE_CHAT = 1
+        const val TYPE_ARCHIVED = 2
     }
 
-    override fun getItemViewType(position: Int) =
-        if (position == 0) TYPE_STORIES else TYPE_CHAT
+    private val chatOffset: Int get() = if (archivedCount > 0) 2 else 1
+
+    override fun getItemViewType(position: Int) = when {
+        position == 0 -> TYPE_STORIES
+        position == 1 && archivedCount > 0 -> TYPE_ARCHIVED
+        else -> TYPE_CHAT
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         val inf = LayoutInflater.from(parent.context)
         return if (viewType == TYPE_STORIES)
             StoriesVH(inf.inflate(R.layout.item_stories_row, parent, false))
+        else if (viewType == TYPE_ARCHIVED)
+            ArchivedVH(inf.inflate(R.layout.item_archived_row, parent, false))
         else
             ChatVH(inf.inflate(R.layout.item_chat, parent, false))
     }
@@ -56,12 +68,19 @@ class ChatsAdapter(
             } else {
                 storiesAdapter.notifyDataSetChanged()
             }
+        } else if (h is ArchivedVH) {
+            h.count.text = if (archivedCount > 0) archivedCount.toString() else ""
+            h.itemView.setOnClickListener { onArchivedClick?.invoke() }
         } else if (h is ChatVH) {
-            h.bind(chats[position - 1], onChatClick, onChatLongClick)
+            h.bind(chats[position - chatOffset], onChatClick, onChatLongClick)
         }
     }
 
-    override fun getItemCount(): Int = 1 + chats.size
+    override fun getItemCount(): Int = chatOffset + chats.size
+
+    class ArchivedVH(v: View) : RecyclerView.ViewHolder(v) {
+        val count: TextView = v.findViewById(R.id.archived_count)
+    }
 
     class StoriesVH(v: View) : RecyclerView.ViewHolder(v) {
         val recycler: RecyclerView = v.findViewById(R.id.stories_row)

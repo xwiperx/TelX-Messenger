@@ -25,6 +25,8 @@ class User(j: JSONObject) {
     val blockedMe: Boolean = j.optBoolean("blocked_me")
     val role: String = j.optString("role", "")
     val viewedTs: Long = j.optLong("viewed_ts", 0)
+    val phone: String = j.optString("phone", "")
+    val privacyLastSeen: Int = j.optInt("privacy_last_seen", 0)
 
     companion object {
         fun parseArray(arr: JSONArray?): List<User> {
@@ -70,13 +72,15 @@ class Message(j: JSONObject) {
     val scheduled: Boolean = j.optBoolean("scheduled")
     val enc: Boolean = j.optBoolean("enc")
     val ts: Long = j.optLong("ts", 0)
+    val views: Int = j.optInt("views", 0)
+    val mediaJson: JSONObject? = if (j.has("media_json") && !j.isNull("media_json")) j.getJSONObject("media_json") else null
     val link: JSONObject? = if (j.has("link") && !j.isNull("link")) j.getJSONObject("link") else null
     val reply: ReplyInfo? = if (j.has("reply") && !j.isNull("reply")) ReplyInfo(j.getJSONObject("reply")) else null
     var reactions: List<Reaction> = parseReactions(j.optJSONArray("reactions"))
     var state: Int = STATE_OK // 0 pending, 1 failed, 2 ok
 
     val isMine: Boolean get() = senderId == Prefs.myId && senderId != 0
-    val hasMedia: Boolean get() = type in listOf("photo", "file", "voice", "video", "gif")
+    val hasMedia: Boolean get() = type in listOf("photo", "file", "voice", "video", "gif", "video_note")
 
     companion object {
         const val STATE_PENDING = 0
@@ -177,4 +181,31 @@ class Event(j: JSONObject) {
     val fromUser: Int? = if (j.has("from_user") && !j.isNull("from_user")) j.getInt("from_user") else null
     val data: JSONObject = j.optJSONObject("data") ?: JSONObject()
     val ts: Long = j.optLong("ts", 0)
+}
+
+class Folder(j: JSONObject) {
+    val id: Int = j.optInt("id")
+    val name: String = j.optString("name", "")
+    val emoji: String = j.optString("emoji", "")
+    val flags: Int = j.optInt("flags", 0)
+    val chats: List<Int> = j.optJSONArray("chats")?.let { arr ->
+        (0 until arr.length()).map { arr.optInt(it) }
+    } ?: emptyList()
+
+    companion object {
+        fun parseArray(arr: JSONArray?): ArrayList<Folder> {
+            val out = ArrayList<Folder>()
+            if (arr != null) for (i in 0 until arr.length()) out.add(Folder(arr.getJSONObject(i)))
+            return out
+        }
+    }
+}
+
+class StickerPack(j: JSONObject) {
+    val id: Int = j.optInt("id")
+    val title: String = j.optString("title", "")
+    val mine: Boolean = j.optBoolean("mine", false)
+    val stickers: List<String> = j.optJSONArray("stickers")?.let { arr ->
+        (0 until arr.length()).map { arr.optString(it) }
+    } ?: emptyList()
 }

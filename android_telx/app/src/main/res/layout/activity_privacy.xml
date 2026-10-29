@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@color/window_bg">
+    <androidx.appcompat.widget.Toolbar android:id="@+id/privacy_toolbar"
+        android:layout_width="match_parent" android:layout_height="?attr/actionBarSize"
+        android:background="@color/toolbar_bg" app:titleTextColor="@color/text_primary" />
+    <ScrollView android:layout_width="match_parent" android:layout_height="match_parent">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:paddingTop="10dp" android:paddingBottom="24dp">
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:paddingStart="18dp" android:paddingEnd="18dp" android:paddingTop="8dp" android:paddingBottom="8dp">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Show last seen to everyone" android:textSize="16sp" android:textColor="@color/text_primary" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Off = hidden from non-contacts" android:textSize="12sp" android:textColor="@color/text_secondary" />
+                </LinearLayout>
+                <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/sw_last_seen_everybody"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:paddingStart="18dp" android:paddingEnd="18dp" android:paddingTop="8dp" android:paddingBottom="8dp">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Show my phone number" android:textSize="16sp" android:textColor="@color/text_primary" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Off = only you can see it" android:textSize="12sp" android:textColor="@color/text_secondary" />
+                </LinearLayout>
+                <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/sw_phone_visible"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:paddingStart="18dp" android:paddingEnd="18dp" android:paddingTop="8dp" android:paddingBottom="8dp">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Show my profile photo" android:textSize="16sp" android:textColor="@color/text_primary" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Off = initials avatar instead" android:textSize="12sp" android:textColor="@color/text_secondary" />
+                </LinearLayout>
+                <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/sw_photo_visible"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" android:layout_marginTop="10dp" android:layout_marginBottom="6dp" />
+
+            <TextView android:id="@+id/row_applock" android:layout_width="match_parent" android:layout_height="52dp"
+                android:gravity="center_vertical" android:paddingStart="18dp" android:paddingEnd="18dp"
+                android:text="App Lock (PIN)" android:textSize="16sp" android:textColor="@color/text_primary"
+                android:background="?android:attr/selectableItemBackground" />
+            <TextView android:id="@+id/row_blocked" android:layout_width="match_parent" android:layout_height="52dp"
+                android:gravity="center_vertical" android:paddingStart="18dp" android:paddingEnd="18dp"
+                android:text="Blocked users" android:textSize="16sp" android:textColor="@color/text_primary"
+                android:background="?android:attr/selectableItemBackground" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

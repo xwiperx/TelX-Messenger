@@ -77,7 +77,9 @@ class AuthActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (Prefs.token.isNotEmpty()) { goMain(); return }
+        // multi-account: adding an account on top of an existing session is allowed
+        val addingAccount = intent.getBooleanExtra("add_account", false)
+        if (Prefs.token.isNotEmpty() && !addingAccount) { goMain(); return }
         setContentView(R.layout.activity_auth)
 
         logo = findViewById(R.id.auth_logo)

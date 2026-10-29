@@ -59,6 +59,16 @@ class UserProfileActivity : AppCompatActivity() {
                 startActivity(Intent(this, com.telx.app.ui.common.PhotoViewerActivity::class.java)
                     .putExtra("url", url))
         }
+        // Telegram-like: tap the @username row → share profile QR code
+        username.setOnClickListener {
+            val u = user ?: return@setOnClickListener
+            if (u.username.isEmpty()) {
+                Helpers.toast(this, "No username set")
+                return@setOnClickListener
+            }
+            com.telx.app.ui.common.QrHelper.showDialog(this,
+                "QR code — ${u.name}", "telx:@${u.username}")
+        }
         btnEdit.setOnClickListener {
             startActivity(Intent(this, EditProfileActivity::class.java))
         }
@@ -126,6 +136,7 @@ class UserProfileActivity : AppCompatActivity() {
         status.text = Helpers.lastSeenText(u.online, u.lastTs)
         status.setTextColor(if (u.online) 0xFF3390EC.toInt() else 0xFF8A8A8E.toInt())
         username.text = if (u.username.isNotEmpty()) "@${u.username}" else "No username"
+        if (u.username.isNotEmpty()) username.setCompoundDrawablesWithIntrinsicBounds(0, 0, R.drawable.ic_qr, 0)
         bio.text = if (u.bio.isEmpty()) "No bio yet" else u.bio
         btnContact.text = if (u.isContact) "Remove contact" else "Add contact"
         btnBlock.text = if (u.blockedByMe) "Unblock user" else "Block user"

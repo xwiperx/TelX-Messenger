@@ -35,6 +35,36 @@
         </LinearLayout>
         <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" android:layout_marginStart="60dp" />
     <LinearLayout
+        android:id="@+id/row_font_size"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_font" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="Message Text Size" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" android:layout_marginStart="60dp" />
+    <LinearLayout
+        android:id="@+id/row_autodownload"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_download" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="20dp"
+            android:text="Automatic Media Download" android:textSize="16sp" android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" android:layout_marginStart="60dp" />
+    <LinearLayout
         android:id="@+id/row_theme"
         android:layout_width="match_parent"
         android:layout_height="52dp"

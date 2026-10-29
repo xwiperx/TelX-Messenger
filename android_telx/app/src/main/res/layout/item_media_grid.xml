@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="120dp"
+    android:layout_margin="2dp">
+    <ImageView android:id="@+id/media_cell_img"
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:scaleType="centerCrop" android:contentDescription="media" />
+    <TextView android:id="@+id/media_cell_label"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start" android:padding="6dp"
+        android:maxLines="1" android:ellipsize="end" android:textSize="10sp"
+        android:textColor="#FFFFFF" android:shadowColor="#AA000000" android:shadowDx="1" android:shadowDy="1" android:shadowRadius="4" />
+</FrameLayout>

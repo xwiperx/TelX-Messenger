@@ -11,14 +11,31 @@ android {
         applicationId "com.telx.app"
         minSdk 23
         targetSdk 34
-        versionCode 2
-        versionName "2.0"
+        versionCode 5
+        versionName "5.0"
+    }
+
+    // Permanent release signature — the SAME key for every future update,
+    // so new versions install directly over the old app (no uninstall needed).
+    signingConfigs {
+        release {
+            storeFile file("keystore/telx-release.jks")
+            storePassword "TelX2026m021"
+            keyAlias "telx"
+            keyPassword "TelX2026m021"
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
+            signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+        debug {
+            // sign debug builds with the release key too, so debug and release
+            // builds can replace each other during development
+            signingConfig signingConfigs.release
         }
     }
     compileOptions {
@@ -39,4 +56,6 @@ dependencies {
     implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
     implementation "com.github.bumptech.glide:glide:4.16.0"
+    // QR codes (Maven Central) — profile QR + scanning from image
+    implementation "com.google.zxing:core:3.5.3"
 }

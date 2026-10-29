@@ -49,6 +49,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -102,6 +103,7 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
     private val voiceRecorder = com.telx.app.media.VoiceRecorder()
     private var recording = false
     private var recordTicker: Job? = null
+    private var downloadTicker: Job? = null
 
     private val pickMedia = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) handlePicked(uri, kind = "photo")
@@ -111,6 +113,9 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
     }
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) startRecording() else Helpers.toast(this, "Microphone permission needed for voice messages")
+    }
+    private val contactPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) showContactShareDialog() else Helpers.toast(this, "Contacts permission needed to share a contact")
     }
 
     // ---------- lifecycle ----------
@@ -169,6 +174,45 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
             else showMessageActions(msg)
         }
         recycler.adapter = adapter
+        // Telegram-style swipe-to-reply on message rows
+        val swipeReply = object : androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(
+            0, android.view.View.GONE) {  // direction set per-row in getMovementFlags
+            override fun onMove(rv: RecyclerView, a: RecyclerView.ViewHolder, b: RecyclerView.ViewHolder): Boolean = false
+            override fun onSwiped(vh: RecyclerView.ViewHolder, dir: Int) {}
+            override fun getMovementFlags(rv: RecyclerView, vh: RecyclerView.ViewHolder): Int {
+                val m = adapter.messageAtRow(vh.bindingAdapterPosition) ?: return 0
+                return if (m.type == "system" || m.id < 0 || selecting) 0
+                else androidx.recyclerview.widget.ItemTouchHelper.Callback.makeMovementFlags(0,
+                    androidx.recyclerview.widget.ItemTouchHelper.LEFT or androidx.recyclerview.widget.ItemTouchHelper.RIGHT)
+            }
+            override fun onChildDraw(c: android.graphics.Canvas, rv: RecyclerView,
+                vh: RecyclerView.ViewHolder, dx: Float, dy: Float, act: Int, cur: Boolean) {
+                val m = adapter.messageAtRow(vh.bindingAdapterPosition) ?: return super.onChildDraw(c, rv, vh, dx, dy, act, cur)
+                if (act == androidx.recyclerview.widget.ItemTouchHelper.ACTION_STATE_SWIPE) {
+                    val abs = dx * 0.35f
+                    vh.itemView.translationX = abs
+                    val d = androidx.core.content.ContextCompat.getDrawable(this@ChatActivity, R.drawable.ic_reply)
+                    if (d != null) {
+                        d.setBounds(0, 0, d.intrinsicWidth, d.intrinsicHeight)
+                        d.setTint(0xFF3390EC.toInt())
+                        val bounds = vh.itemView
+                        val x = if (dx > 0) 48f else bounds.width - 48 - d.intrinsicWidth
+                        c.save()
+                        c.translate(x, bounds.top + bounds.height / 2f - d.intrinsicHeight / 2f)
+                        c.clipRect(0, 0, bounds.width, bounds.height)
+                        d.draw(c)
+                        c.restore()
+                    }
+                }
+            }
+            override fun clearView(rv: RecyclerView, vh: RecyclerView.ViewHolder) {
+                super.clearView(rv, vh)
+                vh.itemView.translationX = 0f
+                val m = adapter.messageAtRow(vh.bindingAdapterPosition) ?: return
+                if (m.type != "system" && m.id > 0 && !selecting) showReplyFor(m, false)
+            }
+        }
+        androidx.recyclerview.widget.ItemTouchHelper(swipeReply).attachToRecyclerView(recycler)
         recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
                 if (dy < 0 && !loadingOlder && lm.findFirstCompletelyVisibleItemPosition() <= 3
@@ -180,6 +224,14 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
 
         btnAttach.setOnClickListener { showAttachSheet() }
         btnSend.setOnClickListener { sendCurrent() }
+        btnSend.setOnLongClickListener { scheduleMessage(); true }
+        findViewById<ImageView>(R.id.btn_emoji).setOnClickListener {
+            com.telx.app.ui.common.EmojiSheet.show(this, input)
+        }
+        adapter.onFileClick = { m ->
+            com.telx.app.media.FileDownloader.tap(this, m)
+            startDownloadTicker()
+        }
         btnMic.setOnTouchListener { v, ev ->
             when (ev.action) {
                 android.view.MotionEvent.ACTION_DOWN -> {
@@ -489,7 +541,8 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         sendOptimistic("text", t, null, null, 0, rt)
     }
 
-    private fun sendOptimistic(type: String, text: String, mediaRel: String?, thumbRel: String?, dur: Int, replyId: Int) {
+    private fun sendOptimistic(type: String, text: String, mediaRel: String?, thumbRel: String?, dur: Int, replyId: Int,
+                              mediaName: String = "", mediaSize: Long = 0) {
         val m = Message(JSONObject()
             .put("id", pendingId.decrementAndGet())
             .put("chat_id", chatId)
@@ -500,6 +553,8 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
             .putOpt("media", mediaRel?.let { Api.BASE + it })
             .putOpt("thumb", thumbRel?.let { Api.BASE + it })
             .put("media_duration", dur)
+            .putOpt("media_name", mediaName)
+            .putOpt("media_size", if (mediaSize > 0) mediaSize else null)
             .put("ts", System.currentTimeMillis() / 1000))
         m.state = Message.STATE_PENDING
         messages.add(m)
@@ -510,7 +565,8 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         ui.launch {
             try {
                 val j = withContext(Dispatchers.IO) {
-                    Api.send(chatId, type, text, mediaRel, thumbRel, mediaDuration = dur, replyTo = replyId)
+                    Api.send(chatId, type, text, mediaRel, thumbRel, mediaName = mediaName,
+                        mediaSize = mediaSize, mediaDuration = dur, replyTo = replyId)
                 }
                 val real = Message(j.getJSONObject("message"))
                 val idx = messages.indexOfFirst { it.id == m.id }
@@ -546,13 +602,38 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                 Helpers.toast(this@ChatActivity, "Sending…")
                 val f = copyToCache(uri, kind)
                 if (f == null) { Helpers.toast(this@ChatActivity, "Could not read file"); return@launch }
-                val up = withContext(Dispatchers.IO) { Api.upload(kind, f) }
-                val type = when (kind) {
-                    "photo" -> if (up.optString("mime") == "image/gif") "gif" else "photo"
-                    else -> "file"
+                val mime = try { contentResolver.getType(uri) ?: "" } catch (_: Exception) { "" }
+                val isVideo = kind == "photo" && (mime.startsWith("video/") ||
+                    f.name.endsWith(".mp4", true) || f.name.endsWith(".mov", true) || f.name.endsWith(".webm", true) ||
+                    f.name.endsWith(".3gp", true))
+                if (isVideo) {
+                    // video: generate a thumbnail on-device and upload both
+                    val thumb = Helpers.videoThumb(this@ChatActivity, f)
+                    val up = withContext(Dispatchers.IO) { Api.upload("video", f) }
+                    var thumbRel: String? = null
+                    if (thumb != null) {
+                        try {
+                            val tup = withContext(Dispatchers.IO) { Api.upload("photo", thumb) }
+                            thumbRel = tup.optString("thumb_rel").ifEmpty { tup.optString("rel") }
+                        } catch (_: Exception) {}
+                        thumb.delete()
+                    }
+                    sendOptimistic("video", "", up.optString("rel"), thumbRel, 0, replyTo?.id ?: 0)
+                } else if (kind == "file") {
+                    // any file type: PDF/ZIP/etc with name + size shown in the bubble
+                    val displayName = queryDisplayName(uri) ?: "file"
+                    val up = withContext(Dispatchers.IO) { Api.upload("file", f) }
+                    sendOptimistic("file", "", up.optString("rel"), null, 0, replyTo?.id ?: 0,
+                        mediaName = displayName, mediaSize = up.optLong("size", f.length()))
+                } else {
+                    // photo: Telegram-style auto compression (GIFs stay untouched)
+                    val compressed = withContext(Dispatchers.IO) { Helpers.compressImage(this@ChatActivity, f) }
+                    val up = withContext(Dispatchers.IO) { Api.upload("photo", compressed) }
+                    val type = if (up.optString("mime") == "image/gif") "gif" else "photo"
+                    sendOptimistic(type, "", up.optString("rel"), up.optStringOrNull("thumb_rel"),
+                        0, replyTo?.id ?: 0)
+                    if (compressed !== f) compressed.delete()
                 }
-                sendOptimistic(type, "", up.optString("rel"), up.optStringOrNull("thumb"),
-                    0, replyTo?.id ?: 0)
                 replyTo = null; clearReplyBar()
                 f.delete()
             } catch (e: Exception) {
@@ -560,6 +641,14 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
             }
         }
     }
+
+    /** original filename from the content resolver (for file bubbles). */
+    private fun queryDisplayName(uri: Uri): String? = try {
+        contentResolver.query(uri, null, null, null, null)?.use { c ->
+            val idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (idx >= 0 && c.moveToFirst()) c.getString(idx) else null
+        }
+    } catch (e: Exception) { null }
 
     private fun copyToCache(uri: Uri, kind: String): File? = try {
         val name = "up_${System.currentTimeMillis()}_${kind}"
@@ -642,13 +731,135 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         }
     }
 
+    private fun startDownloadTicker() {
+        // refresh file rows while any download for this chat is active/paused
+        if (downloadTicker != null) return
+        downloadTicker = ui.launch {
+            while (isActive) {
+                delay(400)
+                val busy = messages.any {
+                    val p = com.telx.app.media.FileDownloader.progress[it.id]
+                    p != null && p in 0..99
+                }
+                adapter.notifyAllChanged()
+                if (!busy) { downloadTicker?.cancel(); downloadTicker = null }
+            }
+        }
+    }
+
     private fun showAttachSheet() {
         val d = BottomSheetDialog(this)
         val v = layoutInflater.inflate(R.layout.sheet_attach, null)
-        v.findViewById<LinearLayout>(R.id.attach_photo).setOnClickListener { d.dismiss(); pickMedia.launch(arrayOf("image/*", "video/mp4")) }
+        v.findViewById<LinearLayout>(R.id.attach_photo).setOnClickListener { d.dismiss(); pickMedia.launch(arrayOf("image/*")) }
+        v.findViewById<LinearLayout>(R.id.attach_gallery).setOnClickListener { d.dismiss(); pickMedia.launch(arrayOf("image/*", "video/mp4")) }
         v.findViewById<LinearLayout>(R.id.attach_file).setOnClickListener { d.dismiss(); pickFile.launch(arrayOf("*/*")) }
+        v.findViewById<LinearLayout>(R.id.attach_sticker).setOnClickListener {
+            d.dismiss()
+            com.telx.app.ui.common.StickerPickerSheet.show(this) { url ->
+                ui.launch {
+                    try {
+                        val j = withContext(Dispatchers.IO) {
+                            Api.send(chatId, "sticker", stickerFile = url.removePrefix(Api.BASE))
+                        }
+                        val real = Message(j.getJSONObject("message"))
+                        messages.add(real)
+                        adapter.notifyAllChanged()
+                        recycler.post { recycler.scrollToPosition(adapter.lastRow()) }
+                    } catch (e: Exception) { Helpers.toast(this@ChatActivity, "Couldn't send sticker") }
+                }
+            }
+        }
+        v.findViewById<LinearLayout>(R.id.attach_videonote).setOnClickListener {
+            d.dismiss()
+            startActivity(Intent(this, VideoNoteActivity::class.java).putExtra("chat_id", chatId))
+        }
+        v.findViewById<LinearLayout>(R.id.attach_location).setOnClickListener { d.dismiss(); showLocationDialog() }
+        v.findViewById<LinearLayout>(R.id.attach_contact).setOnClickListener { d.dismiss(); showContactShareDialog() }
         d.setContentView(v)
         d.show()
+    }
+
+    /** Share a location: prefill from last-known GPS when permitted, else manual. */
+    private fun showLocationDialog() {
+        val v = layoutInflater.inflate(R.layout.dialog_share_location, null)
+        val etTitle = v.findViewById<EditText>(R.id.et_loc_title)
+        val etLat = v.findViewById<EditText>(R.id.et_loc_lat)
+        val etLng = v.findViewById<EditText>(R.id.et_loc_lng)
+        try {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+                val lm = getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+                val last = lm.getProviders(true).mapNotNull { lm.getLastKnownLocation(it) }
+                    .maxByOrNull { it.time }
+                if (last != null) {
+                    etLat.setText("%.5f".format(last.latitude))
+                    etLng.setText("%.5f".format(last.longitude))
+                }
+            }
+        } catch (_: Exception) {}
+        AlertDialog.Builder(this)
+            .setTitle("Share my location")
+            .setView(v)
+            .setPositiveButton("Share") { _, _ ->
+                val lat = etLat.text?.toString()?.toDoubleOrNull()
+                val lng = etLng.text?.toString()?.toDoubleOrNull()
+                if (lat == null || lng == null) { Helpers.toast(this, "Enter coordinates"); return@setPositiveButton }
+                val title0 = etTitle.text?.toString()?.trim().orEmpty()
+                val json = JSONObject().put("lat", lat).put("lng", lng)
+                    .put("title", if (title0.isEmpty()) "My location" else title0)
+                ui.launch {
+                    try {
+                        val j = withContext(Dispatchers.IO) { Api.send(chatId, "location", mediaJson = json.toString()) }
+                        val real = Message(j.getJSONObject("message"))
+                        messages.add(real)
+                        adapter.notifyAllChanged()
+                        recycler.post { recycler.scrollToPosition(adapter.lastRow()) }
+                    } catch (e: Exception) { Helpers.toast(this@ChatActivity, "Failed to send location") }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** Share a contact card from the device phonebook (Telegram-style). */
+    private fun showContactShareDialog() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED) {
+            contactPermission.launch(Manifest.permission.READ_CONTACTS)
+            return
+        }
+        val names = ArrayList<String>()
+        val phones = ArrayList<String>()
+        try {
+            val cr = contentResolver
+            cr.query(android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER),
+                null, null,
+                android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC")?.use { c ->
+                while (c.moveToNext()) {
+                    names.add(c.getString(0) ?: "")
+                    phones.add(c.getString(1) ?: "")
+                }
+            }
+        } catch (_: Exception) {}
+        if (names.isEmpty()) { Helpers.toast(this, "No contacts on this device"); return }
+        AlertDialog.Builder(this)
+            .setTitle("Share contact")
+            .setItems(names.toTypedArray()) { _, which ->
+                val json = JSONObject().put("name", names[which]).put("phone", phones[which])
+                ui.launch {
+                    try {
+                        val j = withContext(Dispatchers.IO) { Api.send(chatId, "contact", mediaJson = json.toString()) }
+                        val real = Message(j.getJSONObject("message"))
+                        messages.add(real)
+                        adapter.notifyAllChanged()
+                        recycler.post { recycler.scrollToPosition(adapter.lastRow()) }
+                    } catch (e: Exception) { Helpers.toast(this@ChatActivity, "Failed to send contact") }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showMessageActions(m: Message) {
@@ -1078,8 +1289,83 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                     ui.launch { try { withContext(Dispatchers.IO) { Api.clearHistory(chatId) } } catch (_: Exception) {} }
                 }
                 .setNegativeButton("Cancel", null).show()
+            R.id.chat_media ->
+                startActivity(Intent(this, MediaGalleryActivity::class.java)
+                    .putExtra("chat_id", chatId))
+            R.id.chat_export -> showExportDialog()
+            R.id.chat_autodelete -> showAutoDeleteDialog()
         }
         return true
+    }
+
+    /** Export chat history as TXT or JSON — saves to cache and shares (Telegram-like). */
+    private fun showExportDialog() {
+        val formats = arrayOf("Export as TXT", "Export as JSON")
+        AlertDialog.Builder(this)
+            .setTitle("Export chat history")
+            .setItems(formats) { _, which ->
+                ui.launch {
+                    try {
+                        val j = withContext(Dispatchers.IO) { Api.exportChat(chatId) }
+                        val arr = j.optJSONArray("messages") ?: org.json.JSONArray()
+                        val title = (j.optString("title").ifEmpty { "chat" })
+                            .replace(Regex("[^A-Za-z0-9 _-]"), "_")
+                        val content: String = if (which == 0) {
+                            buildString {
+                                append("TelX export: $title\n")
+                                append("Messages: ${arr.length()}\n\n")
+                                for (i in 0 until arr.length()) {
+                                    val m = arr.optJSONObject(i) ?: continue
+                                    val t = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US)
+                                        .format(java.util.Date(m.optLong("ts", 0) * 1000))
+                                    val who = m.optString("sender_name").ifEmpty { m.optString("fwd_from", "?") }
+                                    val body = m.optString("text").ifEmpty {
+                                        "[" + m.optString("type").uppercase() + "] " + m.optString("media", "") }
+                                    append("$t  $who:  $body\n")
+                                }
+                            }
+                        } else {
+                            arr.toString(2)
+                        }
+                        val ext = if (which == 0) "txt" else "json"
+                        val f = File(cacheDir, "TelX_${title}_${System.currentTimeMillis()}.$ext")
+                        f.writeText(content)
+                        val uri = androidx.core.content.FileProvider.getUriForFile(
+                            this@ChatActivity, "$packageName.fileprovider", f)
+                        val send = Intent(Intent.ACTION_SEND)
+                            .setType(if (which == 0) "text/plain" else "application/json")
+                            .putExtra(Intent.EXTRA_STREAM, uri)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        startActivity(Intent.createChooser(send, "Export chat history"))
+                    } catch (e: Exception) {
+                        Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Export failed")
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** Telegram-style auto-delete (TTL) picker for this chat. */
+    private fun showAutoDeleteDialog() {
+        val options = arrayOf("Off", "24 hours", "7 days", "1 month")
+        val secs = intArrayOf(0, 86400, 7 * 86400, 30 * 86400)
+        AlertDialog.Builder(this)
+            .setTitle("Auto-delete messages in this chat")
+            .setSingleChoiceItems(options, -1) { d, which ->
+                d.dismiss()
+                ui.launch {
+                    try {
+                        withContext(Dispatchers.IO) { Api.setAutoDelete(chatId, secs[which]) }
+                        Helpers.toast(this@ChatActivity,
+                            if (which == 0) "Auto-delete disabled" else "New messages auto-delete after ${options[which]}")
+                    } catch (e: Exception) {
+                        Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Failed")
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showChatSearch() {

@@ -14,7 +14,62 @@
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:layout_marginStart="18dp" android:text="Photo or Video" android:textSize="15sp"
             android:textColor="@color/text_primary" />
+        <LinearLayout android:id="@+id/attach_location"
+        android:layout_width="match_parent" android:layout_height="56dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingStart="20dp" android:paddingEnd="20dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_pin" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="18dp" android:text="Location" android:textSize="15sp"
+            android:textColor="@color/text_primary" />
     </LinearLayout>
+    <LinearLayout android:id="@+id/attach_contact"
+        android:layout_width="match_parent" android:layout_height="56dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingStart="20dp" android:paddingEnd="20dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_person" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="18dp" android:text="Contact" android:textSize="15sp"
+            android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/attach_videonote"
+        android:layout_width="match_parent" android:layout_height="56dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingStart="20dp" android:paddingEnd="20dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_camera" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="18dp" android:text="Video Message" android:textSize="15sp"
+            android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/attach_sticker"
+        android:layout_width="match_parent" android:layout_height="56dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingStart="20dp" android:paddingEnd="20dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_image" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="18dp" android:text="Sticker" android:textSize="15sp"
+            android:textColor="@color/text_primary" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/attach_gallery"
+        android:layout_width="match_parent" android:layout_height="56dp"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:paddingStart="20dp" android:paddingEnd="20dp"
+        android:background="?android:attr/selectableItemBackground">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_select" app:tint="@color/tg_blue" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="18dp" android:text="Media Gallery" android:textSize="15sp"
+            android:textColor="@color/text_primary" />
+    </LinearLayout>
+</LinearLayout>
     <LinearLayout android:id="@+id/attach_file"
         android:layout_width="match_parent" android:layout_height="56dp"
         android:orientation="horizontal" android:gravity="center_vertical"

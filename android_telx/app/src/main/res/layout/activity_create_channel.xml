@@ -26,7 +26,7 @@
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/et_new_channel_title"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:inputType="textCapSentences" android:maxLength="128" />
+                    android:inputType="textCapSentences" android:maxLength="128"  android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
             </com.google.android.material.textfield.TextInputLayout>
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -34,7 +34,7 @@
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/et_new_channel_desc"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:inputType="textMultiLine|textCapSentences" android:maxLines="3" android:maxLength="255" />
+                    android:inputType="textMultiLine|textCapSentences" android:maxLines="3" android:maxLength="255"  android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
             </com.google.android.material.textfield.TextInputLayout>
             <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -42,7 +42,7 @@
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/et_new_channel_username"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:inputType="text" android:maxLength="32" />
+                    android:inputType="text" android:maxLength="32"  android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
             </com.google.android.material.textfield.TextInputLayout>
             <TextView android:id="@+id/tv_username_hint"
                 android:layout_width="wrap_content" android:layout_height="wrap_content"

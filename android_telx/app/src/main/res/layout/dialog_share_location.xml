@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:padding="16dp">
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Location title">
+        <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_loc_title"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:inputType="text" android:maxLines="1"
+            android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
+    </com.google.android.material.textfield.TextInputLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:layout_marginTop="8dp">
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp" android:hint="Latitude">
+            <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_loc_lat"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:inputType="numberDecimal|numberSigned" android:maxLines="1"
+                android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
+        </com.google.android.material.textfield.TextInputLayout>
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content"
+            android:layout_marginStart="6dp" android:hint="Longitude">
+            <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_loc_lng"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:inputType="numberDecimal|numberSigned" android:maxLines="1"
+                android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
+        </com.google.android.material.textfield.TextInputLayout>
+    </LinearLayout>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="6dp" android:textSize="12sp" android:textColor="@color/text_secondary"
+        android:text="Prefilled from last known location (if permitted). Opens in Google Maps." />
+</LinearLayout>

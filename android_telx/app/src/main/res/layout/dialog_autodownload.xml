@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:padding="16dp">
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="Download media automatically when on:" android:textSize="14sp"
+        android:textColor="@color/text_secondary" android:layout_marginBottom="6dp" />
+    <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/sw_auto_wifi"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="Wi-Fi" android:textSize="15sp" android:textColor="@color/text_primary" />
+    <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/sw_auto_mobile"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="Mobile data" android:textSize="15sp" android:textColor="@color/text_primary" />
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="12dp" android:hint="Max file size (MB, 1-200)">
+        <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_auto_max_mb"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:inputType="number" android:maxLines="1"
+            android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
+    </com.google.android.material.textfield.TextInputLayout>
+</LinearLayout>

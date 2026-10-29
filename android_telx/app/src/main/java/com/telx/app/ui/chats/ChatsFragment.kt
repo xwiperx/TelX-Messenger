@@ -40,7 +40,10 @@ class ChatsFragment : Fragment(), Events.Listener {
     private lateinit var empty: TextView
     private lateinit var adapter: ChatsAdapter
     private val stories = ArrayList<StoryGroup>()
-    private val chats = ArrayList<Chat>()
+    private val allChats = ArrayList<Chat>()
+    private val chats = ArrayList<Chat>()   // shown list = filtered by active folder
+    private val folders = ArrayList<com.telx.app.data.Folder>()
+    private var activeFolderId = 0   // 0 = All chats
     private var reloadJob: Job? = null
     private val handler = Handler(Looper.getMainLooper())
 
@@ -59,6 +62,7 @@ class ChatsFragment : Fragment(), Events.Listener {
         adapter.onStoryClick = { g ->
             startActivity(Intent(requireContext(), com.telx.app.ui.stories.StoriesActivity::class.java))
         }
+        adapter.onArchivedClick = { showArchivedDialog() }
         recycler.layoutManager = LinearLayoutManager(requireContext())
         recycler.adapter = adapter
 
@@ -67,6 +71,135 @@ class ChatsFragment : Fragment(), Events.Listener {
 
         view.findViewById<FloatingActionButton>(R.id.fab_new).setOnClickListener { showCreateSheet() }
         load()
+    }
+
+    // ---------- chat folders (Telegram filters) ----------
+
+    private fun renderFolderTabs(root: View) {
+        val scroll = root.findViewById<android.widget.HorizontalScrollView>(R.id.folder_scroll)
+        val tabs = root.findViewById<LinearLayout>(R.id.folder_tabs)
+        tabs.removeAllViews()
+        scroll.visibility = if (folders.isEmpty() && activeFolderId == 0) View.GONE else View.VISIBLE
+
+        fun chip(label: String, selected: Boolean, onClick: () -> Unit, onLong: () -> Unit) {
+            val tv = TextView(requireContext())
+            tv.text = label
+            tv.textSize = 14f
+            tv.isSingleLine = true
+            val hpad = Helpers.dp(requireContext(), 14)
+            val vpad = Helpers.dp(requireContext(), 6)
+            tv.setPadding(hpad, vpad, hpad, vpad)
+            tv.setTextColor(if (selected) 0xFFFFFFFF.toInt() else 0xFF3390EC.toInt())
+            tv.background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                cornerRadius = Helpers.dp(requireContext(), 16).toFloat()
+                setColor(if (selected) 0xFF3390EC.toInt() else 0x1400A8F0)
+            }
+            tv.setOnClickListener { onClick() }
+            tv.setOnLongClickListener { onLong(); true }
+            tabs.addView(tv)
+            (tv.layoutParams as LinearLayout.LayoutParams).marginEnd = Helpers.dp(requireContext(), 6)
+        }
+
+        chip("All chats", activeFolderId == 0, {
+            activeFolderId = 0; renderFolderTabs(requireView()); refreshChatList()
+        }) {}
+        for (f in folders)
+            chip((if (f.emoji.isNotEmpty()) "${f.emoji} " else "") + f.name,
+                activeFolderId == f.id,
+                { activeFolderId = f.id; renderFolderTabs(requireView()); refreshChatList() },
+                { editFolderDialog(f.id) })
+        chip("＋", false, { newFolderDialog() }) {}
+    }
+
+    /** Refill the visible chat list from the active folder. */
+    private fun refreshChatList() {
+        val f = folders.firstOrNull { it.id == activeFolderId }
+        chats.clear()
+        if (f == null) chats.addAll(allChats)
+        else for (c in allChats) if (f.chats.contains(c.id)) chats.add(c)
+        adapter.notifyDataSetChanged()
+        empty.text = if (chats.isEmpty() && allChats.isNotEmpty())
+            "Nothing in this folder yet.\nLong-press a chat → Add to folder"
+        else "No chats yet\nTap + to start messaging"
+        empty.visibility = if (chats.isEmpty()) View.VISIBLE else View.GONE
+    }
+
+    private fun newFolderDialog() {
+        val v = layoutInflater.inflate(R.layout.dialog_new_folder, null)
+        val etName = v.findViewById<android.widget.EditText>(R.id.et_folder_name)
+        val etEmoji = v.findViewById<android.widget.EditText>(R.id.et_folder_emoji)
+        AlertDialog.Builder(requireContext())
+            .setTitle("New folder")
+            .setView(v)
+            .setPositiveButton("Create") { _, _ ->
+                val name = etName.text?.toString()?.trim() ?: ""
+                if (name.isEmpty()) { Helpers.toast(context, "Enter a folder name"); return@setPositiveButton }
+                ui.launch {
+                    try {
+                        withContext(Dispatchers.IO) { Api.folderSave(0, name, etEmoji.text?.toString() ?: "") }
+                        loadFolders()
+                    } catch (e: Exception) { Helpers.toast(context, "Failed to create folder") }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun editFolderDialog(folderId: Int) {
+        val f = folders.firstOrNull { it.id == folderId } ?: return
+        val items = arrayOf("Rename / edit", "Delete folder")
+        AlertDialog.Builder(requireContext())
+            .setTitle("${f.emoji} ${f.name}")
+            .setItems(items) { _, which ->
+                if (which == 0) {
+                    val v = layoutInflater.inflate(R.layout.dialog_new_folder, null)
+                    val etName = v.findViewById<android.widget.EditText>(R.id.et_folder_name)
+                    val etEmoji = v.findViewById<android.widget.EditText>(R.id.et_folder_emoji)
+                    etName.setText(f.name); etEmoji.setText(f.emoji)
+                    AlertDialog.Builder(requireContext())
+                        .setTitle("Edit folder")
+                        .setView(v)
+                        .setPositiveButton("Save") { _, _ ->
+                            ui.launch {
+                                try {
+                                    withContext(Dispatchers.IO) {
+                                        Api.folderSave(f.id, etName.text?.toString()?.trim() ?: f.name,
+                                            etEmoji.text?.toString() ?: "") }
+                                    loadFolders()
+                                } catch (e: Exception) { Helpers.toast(context, "Failed") }
+                            }
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                } else {
+                    AlertDialog.Builder(requireContext())
+                        .setMessage("Delete folder '${f.name}'?")
+                        .setPositiveButton("Delete") { _, _ ->
+                            ui.launch {
+                                try {
+                                    withContext(Dispatchers.IO) { Api.folderDelete(f.id) }
+                                    if (activeFolderId == f.id) activeFolderId = 0
+                                    loadFolders()
+                                } catch (e: Exception) { Helpers.toast(context, "Failed") }
+                            }
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                }
+            }
+            .show()
+    }
+
+    private fun loadFolders() {
+        ui.launch {
+            try {
+                val arr = withContext(Dispatchers.IO) { Api.folders() }
+                folders.clear()
+                folders.addAll(com.telx.app.data.Folder.parseArray(arr))
+            } catch (_: Exception) {}
+            if (view != null) { renderFolderTabs(requireView()); refreshChatList() }
+        }
     }
 
     private fun showCreateSheet() {
@@ -101,11 +234,11 @@ class ChatsFragment : Fragment(), Events.Listener {
         ui.launch {
             try {
                 val chatsJ = withContext(Dispatchers.IO) { Api.chatsList() }
-                chats.clear()
+                allChats.clear()
                 val arr = chatsJ.optJSONArray("chats")
                 if (arr != null) for (i in 0 until arr.length()) {
                     val c = Chat(arr.getJSONObject(i))
-                    chats.add(c)
+                    allChats.add(c)
                     com.telx.app.svc.PollService.MuteCache.setMuted(c.id, c.muted)
                 }
                 (activity as? com.telx.app.ui.MainActivity)?.refreshDrawerHeader()
@@ -115,8 +248,9 @@ class ChatsFragment : Fragment(), Events.Listener {
                     if (feed != null) for (i in 0 until feed.length())
                         stories.add(StoryGroup(feed.getJSONObject(i)))
                 } catch (_: Exception) {}
-                adapter.notifyDataSetChanged()
-                empty.visibility = if (chats.isEmpty()) View.VISIBLE else View.GONE
+                loadFolders()
+                if (view != null) refreshChatList()
+                adapter.archivedCount = chatsJ.optInt("archived_count", 0)
             } catch (e: Exception) {
                 Helpers.toast(context, "Couldn't refresh — check connection")
             } finally {
@@ -141,6 +275,7 @@ class ChatsFragment : Fragment(), Events.Listener {
         items.add(if (c.pinned) "Unpin from top" else "Pin to top")
         items.add(if (c.muted) "Unmute notifications" else "Mute notifications")
         items.add(if (c.archived) "Unarchive" else "Archive")
+        items.add("Add to folder")
         items.add("Clear history")
         if (c.type == "group") items.add("Leave group")
         if (c.isChannel) items.add("Leave channel")
@@ -148,6 +283,7 @@ class ChatsFragment : Fragment(), Events.Listener {
             .setTitle(c.displayName)
             .setItems(items.toTypedArray()) { _, which ->
                 val label = items[which]
+                if (label == "Add to folder") { showAddToFolder(c); return@setItems }
                 ui.launch {
                     try {
                         when (label) {
@@ -166,6 +302,61 @@ class ChatsFragment : Fragment(), Events.Listener {
                 }
             }
             .show()
+    }
+
+    private fun showAddToFolder(c: Chat) {
+        if (folders.isEmpty()) {
+            Helpers.toast(context, "Create a folder first (＋ tab above the chat list)")
+            newFolderDialog()
+            return
+        }
+        val labels = folders.map { (if (it.emoji.isNotEmpty()) "${it.emoji} " else "") + it.name }.toTypedArray()
+        AlertDialog.Builder(requireContext())
+            .setTitle("Add '${c.displayName}' to folder")
+            .setItems(labels) { _, which ->
+                val f = folders[which]
+                ui.launch {
+                    try {
+                        withContext(Dispatchers.IO) { Api.folderAssign(f.id, c.id, true) }
+                        Helpers.toast(context, "Added to ${f.name}")
+                        loadFolders()
+                    } catch (e: Exception) { Helpers.toast(context, "Failed") }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** Telegram-style archived chats list: open, unarchive or clear each entry. */
+    private fun showArchivedDialog() {
+        ui.launch {
+            try {
+                val all = withContext(Dispatchers.IO) { Api.chatsList(includeArchived = true) }
+                val archived = ArrayList<Chat>()
+                val arr = all.optJSONArray("chats")
+                if (arr != null) for (i in 0 until arr.length()) {
+                    val c = Chat(arr.getJSONObject(i))
+                    if (c.archived) archived.add(c)
+                }
+                if (archived.isEmpty()) { Helpers.toast(context, "No archived chats"); return@launch }
+                val labels = archived.map {
+                    "${it.displayName}  ·  ${it.lastMessage?.text ?: ""}".trim().take(60)
+                }.toTypedArray()
+                AlertDialog.Builder(requireContext())
+                    .setTitle("Archived Chats (${archived.size})")
+                    .setItems(labels) { _, which -> openChat(archived[which]) }
+                    .setNeutralButton("Unarchive all") { _, _ ->
+                        ui.launch {
+                            for (c in archived) {
+                                try { withContext(Dispatchers.IO) { Api.setArchived(c.id, false) } } catch (_: Exception) {}
+                            }
+                            load()
+                        }
+                    }
+                    .setNegativeButton("Close", null)
+                    .show()
+            } catch (e: Exception) { Helpers.toast(context, "Couldn't load archived chats") }
+        }
     }
 
     override fun onResume() {

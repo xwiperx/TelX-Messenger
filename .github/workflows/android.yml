@@ -23,21 +23,26 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
-      - name: Build debug APK
+      # Both build types are signed with the SAME permanent keystore committed in
+      # the repo, so every future release installs over the previous version.
+      - name: Build signed APKs
         working-directory: android_telx
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleRelease assembleDebug --no-daemon --stacktrace
 
-      - name: Rename APK
+      - name: Rename APKs
         run: |
+          cp android_telx/app/build/outputs/apk/release/app-release.apk TelX.apk
           cp android_telx/app/build/outputs/apk/debug/app-debug.apk TelX-debug.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: TelX-APK
-          path: TelX-debug.apk
+          path: |
+            TelX.apk
+            TelX-debug.apk
 
       - name: "Publish to GitHub Releases (latest tag)"
         uses: ncipollo/release-action@v1
@@ -45,10 +50,13 @@ jobs:
           tag: latest
           name: TelX — Latest Build
           body: |
-            🚀 TelX Messenger — fresh debug build (auto-updated on every push to main)
+            🚀 TelX Messenger v5.0 — signed release build (same signature for all future updates)
 
-            **Install:** download `TelX-debug.apk`, enable "Install unknown apps", install.
-          artifacts: TelX-debug.apk
+            **Install:** download `TelX.apk`, enable "Install unknown apps", install.
+            If you still have the OLD TelX (before v5.0), uninstall it ONE last time first — from now on every update installs directly over the previous version.
+          artifacts: |
+            TelX.apk
+            TelX-debug.apk
           allowUpdates: true
           replacesArtifacts: true
           makeLatest: true

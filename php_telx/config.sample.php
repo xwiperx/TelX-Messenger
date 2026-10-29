@@ -238,6 +238,7 @@ function save_upload(string $kind, string $field = 'file'): array {
         'story'  => ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp',
                      'image/gif' => 'gif', 'video/mp4' => 'mp4', 'video/quicktime' => 'mov', 'video/webm' => 'webm'],
         'voice'  => ['audio/mp4' => 'm4a', 'audio/mpeg' => 'mp3', 'audio/ogg' => 'ogg', 'audio/opus' => 'ogg',
+                     'audio/x-m4a' => 'm4a', 'audio/mp4a-latm' => 'm4a', 'video/mp4' => 'm4a',
                      'audio/webm' => 'weba', 'audio/wav' => 'wav', 'audio/x-wav' => 'wav', 'audio/aac' => 'aac',
                      'audio/amr' => 'amr', 'audio/3gpp' => '3gp', 'video/3gpp' => '3gp', 'audio/mp3' => 'mp3', 'audio/m4a' => 'm4a', 'audio/aac' => 'aac'],
         'gif'    => ['image/gif' => 'gif'],
@@ -386,6 +387,18 @@ function msg_public(array $m, int $viewer): array {
         'ts' => ts($m['created_at']),
     ];
     if (!empty($m['link_json'])) $a['link'] = json_decode($m['link_json'], true);
+    if (!empty($m['media_json'])) $a['media_json'] = json_decode($m['media_json'], true);
+    static $chat_type_cache = [];
+    $mCid = (int)$m['chat_id'];
+    if (!isset($chat_type_cache[$mCid])) {
+        $q = db()->prepare('SELECT type FROM chats WHERE id = ?'); $q->execute([$mCid]);
+        $chat_type_cache[$mCid] = $q->fetch()['type'] ?? '';
+    }
+    if ($chat_type_cache[$mCid] === 'channel') {
+        $q = db()->prepare('SELECT COUNT(*) c FROM message_views WHERE message_id = ?');
+        $q->execute([(int)$m['id']]);
+        $a['views'] = (int)$q->fetch()['c'];
+    }
     if ($m['reply_to'] !== null) {
         $st = db()->prepare('SELECT * FROM messages WHERE id = ?');
         $st->execute([(int)$m['reply_to']]);

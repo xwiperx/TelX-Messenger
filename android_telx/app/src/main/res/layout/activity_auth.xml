@@ -33,7 +33,7 @@
             android:layout_marginTop="22dp" android:hint="First name" android:visibility="gone">
             <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_first"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:inputType="textPersonName" android:maxLines="1" />
+                android:inputType="textPersonName" android:maxLines="1"  android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
         </com.google.android.material.textfield.TextInputLayout>
         <com.google.android.material.textfield.TextInputLayout android:id="@+id/til_last"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -41,7 +41,7 @@
             android:layout_marginTop="12dp" android:hint="Last name (optional)" android:visibility="gone">
             <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_last"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:inputType="textPersonName" android:maxLines="1" />
+                android:inputType="textPersonName" android:maxLines="1"  android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
         </com.google.android.material.textfield.TextInputLayout>
         <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content">
             <com.google.android.material.textfield.TextInputLayout android:id="@+id/til_username"
@@ -51,7 +51,7 @@
                 <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_username"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:inputType="text" android:maxLines="1"
-                    android:paddingEnd="44dp" />
+                    android:paddingEnd="44dp"  android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
             </com.google.android.material.textfield.TextInputLayout>
             <ImageView android:id="@+id/username_check" android:layout_width="24dp" android:layout_height="24dp"
                 android:layout_gravity="end|center_vertical" android:layout_marginTop="26dp"
@@ -64,7 +64,7 @@
             android:layout_marginTop="12dp" android:hint="Email" android:visibility="gone">
             <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_email"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:inputType="textEmailAddress" android:maxLines="1" />
+                android:inputType="textEmailAddress" android:maxLines="1"  android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
         </com.google.android.material.textfield.TextInputLayout>
         <com.google.android.material.textfield.TextInputLayout android:id="@+id/til_password"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -73,7 +73,7 @@
             app:endIconMode="password_toggle" android:visibility="gone">
             <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_password"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:inputType="textPassword" android:maxLines="1" />
+                android:inputType="textPassword" android:maxLines="1"  android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
         </com.google.android.material.textfield.TextInputLayout>
         <com.google.android.material.textfield.TextInputLayout android:id="@+id/til_code"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -81,7 +81,7 @@
             android:layout_marginTop="12dp" android:hint="Code" android:visibility="gone">
             <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_code"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:inputType="number" android:maxLength="6" android:maxLines="1" />
+                android:inputType="number" android:maxLength="6" android:maxLines="1"  android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
         </com.google.android.material.textfield.TextInputLayout>
         <com.google.android.material.button.MaterialButton android:id="@+id/btn_primary"
             android:layout_width="match_parent" android:layout_height="52dp"

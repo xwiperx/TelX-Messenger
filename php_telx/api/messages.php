@@ -49,14 +49,16 @@ case 'send': {
     if ($chat['type'] === 'channel' && (string)$membership['role'] !== 'admin')
         fail('forbidden', 'Only channel admins can post here');
     $type = p('type') ?? 'text';
-    if (!in_array($type, ['text','photo','file','voice','video','sticker','gif'], true)) fail('invalid', 'Bad message type');
+    if (!in_array($type, ['text','photo','file','voice','video','sticker','gif','video_note','location','contact'], true)) fail('invalid', 'Bad message type');
     $text = (string)(p('text') ?? '');
     $media = p('media_rel');
     $thumb = p('thumb_rel');
     $enc = pint('encrypted') === 1 && (int)$chat['secret'] === 1;
     if ($type === 'text' && $text === '' && !$enc) fail('invalid', 'Empty message');
-    if (in_array($type, ['photo','file','voice','video','gif'], true) && !$media) fail('invalid', 'media required');
+    if (in_array($type, ['photo','file','voice','video','gif','video_note'], true) && !$media) fail('invalid', 'media required');
     if ($type === 'sticker' && !(p('sticker'))) fail('invalid', 'sticker id required');
+    if ($type === 'location' && !(p('media_json'))) fail('invalid', 'location json required');
+    if ($type === 'contact' && !(p('media_json'))) fail('invalid', 'contact json required');
     if ($chat['type'] === 'private') {
         $peer = peer_of_private($cid, (int)$me['uid']);
         if ($peer && is_blocked((int)$peer['uid'], (int)$me['uid'])) fail('blocked', 'You cannot message this user');
@@ -78,17 +80,19 @@ case 'send': {
         $autoDeleteAt = sqlts(time() + (int)$chat['auto_delete_secs']);
     $senderName = trim($me['first_name'] . ' ' . $me['last_name']);
     $schedSql = $isScheduled ? sqlts($scheduledTs) : null;
+    $mediaJson = p('media_json');
     db()->prepare("INSERT INTO messages (chat_id, sender_id, sender_name, type, text, media, thumb,
-                    media_name, media_size, media_duration, sticker, link_json, reply_to, encrypted,
+                    media_name, media_size, media_duration, sticker, link_json, media_json, reply_to, encrypted,
                     scheduled_at, auto_delete_at, created_at)
                     VALUES (:chat_id, :sender_id, :sender_name, :type, :text, :media, :thumb,
-                            :media_name, :media_size, :media_duration, :sticker, :link_json, :reply_to,
+                            :media_name, :media_size, :media_duration, :sticker, :link_json, :media_json, :reply_to,
                             :encrypted, :scheduled_at, :auto_delete_at, UTC_TIMESTAMP())")
         ->execute(['chat_id' => $cid, 'sender_id' => $me['uid'], 'sender_name' => $senderName, 'type' => $type,
                    'text' => $enc ? $text : ($text !== '' ? $text : null),
                    'media' => $media, 'thumb' => $thumb,
                    'media_name' => (string)(p('media_name') ?? ''), 'media_size' => pint('media_size'),
                    'media_duration' => pint('media_duration'), 'sticker' => p('sticker'), 'link_json' => $linkJson,
+                   'media_json' => $mediaJson,
                    'reply_to' => $replyTo ?: null,
                    'encrypted' => $enc ? 1 : 0, 'scheduled_at' => $schedSql, 'auto_delete_at' => $autoDeleteAt]);
     $mid = (int)db()->lastInsertId();
@@ -296,6 +300,52 @@ case 'search_global': {
         $msgs[] = $mp;
     }
     ok(['users' => $users, 'messages' => $msgs]);
+}
+
+case 'media_list': {
+    $me = me();
+    $cid = pint('chat_id');
+    require_member($cid);
+    $kind = p('kind') ?: 'all';           // all | photo | video | file | voice
+    $sql = 'SELECT * FROM messages WHERE chat_id = ? AND deleted = 0';
+    $args = [$cid];
+    if ($kind === 'photo')  $sql .= " AND type IN ('photo','gif')";
+    if ($kind === 'video')  $sql .= " AND type IN ('video','video_note')";
+    if ($kind === 'file')   $sql .= " AND type = 'file'";
+    if ($kind === 'voice')  $sql .= " AND type = 'voice'";
+    if ($kind === 'media')  $sql .= " AND type IN ('photo','gif','video','video_note','file')";
+    $sql .= ' ORDER BY id DESC LIMIT 400';
+    $st = db()->prepare($sql); $st->execute($args);
+    $out = array_map(fn($m) => msg_public($m, (int)$me['uid']), $st->fetchAll());
+    ok(['messages' => $out]);
+}
+
+case 'view_ping': {
+    // channel post view counter (unique per user)
+    $me = me();
+    $ids = array_map('intval', array_slice(parr('message_ids'), 0, 200));
+    if (!$ids) ok();
+    $in = implode(',', array_fill(0, count($ids), '?'));
+    $st = db()->prepare("SELECT m.id, c.type FROM messages m JOIN chats c ON c.id = m.chat_id
+                          WHERE m.id IN ($in)");
+    $st->execute($ids);
+    $ins = db()->prepare('INSERT IGNORE INTO message_views (message_id, user_id) VALUES (?,?)');
+    foreach ($st->fetchAll() as $row) {
+        if ($row['type'] === 'channel') $ins->execute([(int)$row['id'], $me['uid']]);
+    }
+    ok(['counted' => count($ids)]);
+}
+
+case 'export': {
+    $me = me();
+    $cid = pint('chat_id');
+    require_member($cid);
+    $chat = chat_of($cid);
+    $title = $chat ? ($chat['title'] ?: 'Chat') : 'Chat';
+    $st = db()->prepare('SELECT * FROM messages WHERE chat_id = ? AND deleted = 0 AND scheduled_at IS NULL ORDER BY id LIMIT 5000');
+    $st->execute([$cid]);
+    $out = array_map(fn($m) => msg_public($m, (int)$me['uid']), $st->fetchAll());
+    ok(['title' => $title, 'messages' => $out]);
 }
 
 case 'scheduled': {

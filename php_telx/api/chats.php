@@ -97,7 +97,10 @@ case 'list': {
     }
     $totalUnread = db()->prepare('SELECT COALESCE(SUM(unread_count),0) t FROM chat_members WHERE user_id = ?');
     $totalUnread->execute([$me['uid']]);
-    ok(['chats' => $out, 'total_unread' => (int)$totalUnread->fetch()['t'], 'server_time' => time()]);
+    $archivedCount = db()->prepare('SELECT COUNT(*) c FROM chat_members WHERE user_id = ? AND archived = 1');
+    $archivedCount->execute([$me['uid']]);
+    ok(['chats' => $out, 'total_unread' => (int)$totalUnread->fetch()['t'],
+        'archived_count' => (int)$archivedCount->fetch()['c'], 'server_time' => time()]);
 }
 
 case 'open': {
@@ -166,8 +169,9 @@ case 'create_group': {
         if (!$u) fail('not_found', 'User not found');
         if (is_blocked($mid, (int)$me['uid'])) fail('blocked', "User $mid blocked you");
     }
-    db()->prepare("INSERT INTO chats (type, title, created_at, last_message_at) VALUES ('group', ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())")
-        ->execute([$title]);
+    $avatarRel = p('avatar_rel');
+    db()->prepare("INSERT INTO chats (type, title, avatar, created_at, last_message_at) VALUES ('group', ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())")
+        ->execute([$title, $avatarRel ?: null]);
     $cid = (int)db()->lastInsertId();
     $ins = db()->prepare("INSERT INTO chat_members (chat_id, user_id, role, joined_at) VALUES (?,?,?,UTC_TIMESTAMP())");
     $ins->execute([$cid, $me['uid'], 'admin']);
@@ -190,10 +194,12 @@ case 'create_channel': {
     }
     $desc = trim(p('description') ?? '');
     if (mb_strlen($desc) > 255) fail('invalid', 'Description max 255 chars');
+    $avatarRelC = p('avatar_rel');
     $memberIds = array_values(array_unique(array_diff(array_map('intval', parr('member_ids')), [(int)$me['uid']])));
     foreach ($memberIds as $mid) { $u = user_by_id($mid); if (!$u) fail('not_found', "User $mid not found"); }
-    db()->prepare("INSERT INTO chats (type, title, username, description, created_at, last_message_at)
-                   VALUES ('channel', ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())")->execute([$title, $username ?: null, $desc ?: null]);
+    db()->prepare("INSERT INTO chats (type, title, username, description, avatar, created_at, last_message_at)
+                   VALUES ('channel', ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())")
+        ->execute([$title, $username ?: null, $desc ?: null, $avatarRelC ?: null]);
     $cid = (int)db()->lastInsertId();
     $ins = db()->prepare("INSERT INTO chat_members (chat_id, user_id, role, joined_at) VALUES (?,?,?,UTC_TIMESTAMP())");
     $ins->execute([$cid, $me['uid'], 'admin']);
@@ -509,6 +515,113 @@ case 'set_auto_delete': {
     $others = chat_member_ids($cid, (int)$me['uid']);
     emit($others, 'chat_updated', ['chat_id' => $cid, 'auto_delete_secs' => $secs], $cid, (int)$me['uid']);
     ok(['auto_delete_secs' => $secs]);
+}
+
+case 'invite': {
+    // create / read / reset the invite link of a group or channel
+    $me = me();
+    $cid = pint('chat_id');
+    $m = require_member($cid);
+    $chat = chat_of($cid);
+    if (!$chat || !in_array($chat['type'], ['group', 'channel'], true)) fail('invalid', 'Not a group or channel');
+    $reset = pint('reset') === 1;
+    if (($reset || empty($chat['invite_code'])) && $m['role'] !== 'admin')
+        fail('forbidden', 'Only admins can manage the invite link');
+    $code = (string)$chat['invite_code'];
+    if ($code === '' || $reset) {
+        $code = substr(bin2hex(random_bytes(6)), 0, 10);
+        db()->prepare('UPDATE chats SET invite_code = ? WHERE id = ?')->execute([$code, $cid]);
+    }
+    ok(['invite_code' => $code, 'link' => BASE_URL . 'invite/' . $code]);
+}
+
+case 'join_invite': {
+    $me = me();
+    $code = trim((string)(p('code') ?? ''));
+    if ($code === '') fail('invalid', 'Invite code required');
+    // accept both the raw code and the full link (…/invite/CODE)
+    if (preg_match('#invite/([A-Za-z0-9]+)#', $code, $mm)) $code = $mm[1];
+    $st = db()->prepare('SELECT * FROM chats WHERE invite_code = ? LIMIT 1');
+    $st->execute([$code]);
+    $chat = $st->fetch();
+    if (!$chat || !in_array($chat['type'], ['group', 'channel'], true)) fail('not_found', 'This invite link is invalid');
+    $cid = (int)$chat['id'];
+    if (my_membership($cid, (int)$me['uid'])) ok(['chat_id' => $cid, 'joined' => false]);
+    db()->prepare("INSERT INTO chat_members (chat_id, user_id, role, joined_at) VALUES (?,?,'member',UTC_TIMESTAMP())")
+        ->execute([$cid, $me['uid']]);
+    if ($chat['type'] === 'group') {
+        db()->prepare("INSERT INTO messages (chat_id, sender_id, sender_name, type, text, created_at)
+                       VALUES (?,NULL,'','system',?,UTC_TIMESTAMP())")
+            ->execute([$cid, trim($me['first_name']) . ' joined via invite link']);
+    }
+    emit(chat_member_ids($cid, (int)$me['uid']), 'chat_updated', ['chat_id' => $cid], $cid, (int)$me['uid']);
+    emit($me['uid'], 'chat_created', ['chat_id' => $cid], $cid);
+    ok(['chat_id' => $cid, 'joined' => true]);
+}
+
+case 'folders': {
+    // list all folders of me with their chat ids
+    $me = me();
+    $st = db()->prepare('SELECT * FROM chat_folders WHERE user_id = ? ORDER BY sort, id');
+    $st->execute([$me['uid']]);
+    $out = [];
+    foreach ($st->fetchAll() as $f) {
+        $s2 = db()->prepare('SELECT chat_id FROM folder_chats WHERE folder_id = ?');
+        $s2->execute([(int)$f['id']]);
+        $out[] = ['id' => (int)$f['id'], 'name' => $f['name'], 'emoji' => $f['emoji'],
+                  'flags' => (int)$f['flags'], 'chats' => array_map(fn($r) => (int)$r['chat_id'], $s2->fetchAll())];
+    }
+    ok(['folders' => $out]);
+}
+
+case 'folder_save': {
+    $me = me();
+    $fid = pint('folder_id');
+    $name = trim((string)(p('name') ?? ''));
+    $emoji = mb_substr(trim((string)(p('emoji') ?? '')), 0, 8);
+    $flags = pint('flags');
+    if ($name === '') fail('invalid', 'Folder name required');
+    if (mb_strlen($name) > 32) fail('invalid', 'Folder name too long');
+    if ($fid > 0) {
+        $st = db()->prepare('SELECT id FROM chat_folders WHERE id = ? AND user_id = ?');
+        $st->execute([$fid, $me['uid']]);
+        if (!$st->fetch()) fail('not_found', 'Folder not found');
+        db()->prepare('UPDATE chat_folders SET name = ?, emoji = ?, flags = ? WHERE id = ?')
+            ->execute([$name, $emoji, $flags, $fid]);
+        ok(['folder_id' => $fid]);
+    }
+    try {
+        db()->prepare('INSERT INTO chat_folders (user_id, name, emoji, flags) VALUES (?,?,?,?)')
+            ->execute([$me['uid'], $name, $emoji, $flags]);
+        ok(['folder_id' => (int)db()->lastInsertId()]);
+    } catch (Throwable $e) {
+        fail('invalid', 'A folder with this name already exists');
+    }
+}
+
+case 'folder_delete': {
+    $me = me();
+    $fid = pint('folder_id');
+    $st = db()->prepare('SELECT id FROM chat_folders WHERE id = ? AND user_id = ?');
+    $st->execute([$fid, $me['uid']]);
+    if (!$st->fetch()) fail('not_found', 'Folder not found');
+    db()->prepare('DELETE FROM folder_chats WHERE folder_id = ?')->execute([$fid]);
+    db()->prepare('DELETE FROM chat_folders WHERE id = ?')->execute([$fid]);
+    ok(['deleted' => 1]);
+}
+
+case 'folder_assign': {
+    $me = me();
+    $fid = pint('folder_id');
+    $cid = pint('chat_id');
+    $inside = pint('inside') === 1;
+    $st = db()->prepare('SELECT id FROM chat_folders WHERE id = ? AND user_id = ?');
+    $st->execute([$fid, $me['uid']]);
+    if (!$st->fetch()) fail('not_found', 'Folder not found');
+    require_member($cid);
+    if ($inside) db()->prepare('INSERT IGNORE INTO folder_chats (folder_id, chat_id) VALUES (?,?)')->execute([$fid, $cid]);
+    else db()->prepare('DELETE FROM folder_chats WHERE folder_id = ? AND chat_id = ?')->execute([$fid, $cid]);
+    ok(['folder_id' => $fid, 'chat_id' => $cid, 'inside' => $inside]);
 }
 
 case 'clear_history': {

@@ -7,6 +7,6 @@
         android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Group name">
         <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_group_title"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:inputType="text" android:maxLines="1" />
+            android:inputType="text" android:maxLines="1"  android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
     </com.google.android.material.textfield.TextInputLayout>
 </LinearLayout>

@@ -31,6 +31,22 @@
         android:visible="false"
         app:showAsAction="never" />
     <item
+        android:id="@+id/chat_media"
+        android:title="Shared media"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/chat_autodelete"
+        android:title="Auto-delete messages"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/chat_export"
+        android:title="Export chat history"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/chat_schedule"
+        android:title="Schedule message"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/chat_clear"
         android:title="Clear history"
         app:showAsAction="never" />

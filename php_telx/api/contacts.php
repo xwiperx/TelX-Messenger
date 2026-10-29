@@ -25,12 +25,18 @@ case 'add': {
     $me = me();
     $uid = pint('user_id');
     $username = trim(p('username') ?? '');
+    $phone = preg_replace('/[^0-9+]/', '', (string)(p('phone') ?? ''));
     $target = null;
     if ($uid) $target = user_by_id($uid);
     else if ($username !== '') {
         $st = db()->prepare('SELECT *, id AS uid FROM users WHERE LOWER(username) = LOWER(?) LIMIT 1');
         $st->execute([ltrim($username, '@')]);
         $target = $st->fetch();
+    } else if ($phone !== '') {
+        $st = db()->prepare('SELECT *, id AS uid FROM users WHERE phone = ? LIMIT 1');
+        $st->execute([$phone]);
+        $target = $st->fetch();
+        if (!$target) fail('not_found', 'No TelX user with this phone number');
     }
     if (!$target) fail('not_found', 'User not found');
     $tid = (int)$target['uid'];
@@ -80,10 +86,15 @@ case 'search_users': {
     $q = trim(p('q') ?? '');
     if ($q === '') ok(['users' => []]);
     $like = '%' . $q . '%';
+    $phoneq = preg_replace('/[^0-9+]/', '', $q);
     $st = db()->prepare("SELECT *, id AS uid FROM users
-                          WHERE (LOWER(username) LIKE LOWER(?) OR CONCAT(first_name,' ',last_name) LIKE ?)
+                          WHERE (LOWER(username) LIKE LOWER(?) OR CONCAT(first_name,' ',last_name) LIKE ?" 
+                          . ($phoneq !== '' ? ' OR phone LIKE ?' : '') . ")
                           AND id <> ? LIMIT 30");
-    $st->execute([$like, $like, me_id()]);
+    $params = [$like, $like];
+    if ($phoneq !== '') $params[] = '%' . $phoneq . '%';
+    $params[] = me_id();
+    $st->execute($params);
     $me_id_ = me_id();
     $out = [];
     foreach ($st->fetchAll() as $u) {

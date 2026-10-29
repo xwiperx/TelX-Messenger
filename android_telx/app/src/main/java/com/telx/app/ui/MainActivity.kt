@@ -149,6 +149,8 @@ class MainActivity : AppCompatActivity() {
                 R.id.nav_new_channel -> startActivity(Intent(this, com.telx.app.ui.chats.CreateChannelActivity::class.java))
                 R.id.nav_new_secret -> startActivity(Intent(this, com.telx.app.ui.contacts.PickSecretActivity::class.java))
                 R.id.nav_saved -> openSavedMessages()
+                R.id.nav_add_account -> addAccount()
+                R.id.nav_switch_account -> switchAccount()
                 R.id.nav_contacts -> { show(contactsFragment); drawer.closeDrawer(androidx.core.view.GravityCompat.START); return@setNavigationItemSelectedListener true }
                 R.id.nav_settings -> { show(settingsFragment); drawer.closeDrawer(androidx.core.view.GravityCompat.START); return@setNavigationItemSelectedListener true }
                 R.id.nav_chats -> { show(chatsFragment); drawer.closeDrawer(androidx.core.view.GravityCompat.START); return@setNavigationItemSelectedListener true }
@@ -171,10 +173,47 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ---------- multi-account (Telegram-like) ----------
+
+    /** Keep the current session in the multi-account registry. */
+    private fun saveAccountSnapshot() {
+        try { com.telx.app.ui.common.AccountManager.saveCurrent() } catch (_: Exception) {}
+    }
+
+    private fun addAccount() {
+        saveAccountSnapshot()
+        startActivity(Intent(this, AuthActivity::class.java).putExtra("add_account", true))
+    }
+
+    private fun switchAccount() {
+        val accs = try { com.telx.app.ui.common.AccountManager.list() } catch (_: Exception) { ArrayList() }
+        val others = accs.filter { it.optInt("id") != Prefs.myId }
+        if (others.isEmpty()) {
+            Helpers.toast(this, "No other account yet — use Add Account")
+            return
+        }
+        val labels = others.map { "${it.optString("name")} (@${it.optString("username")})" }.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Switch account")
+            .setItems(labels) { _, which ->
+                val o = others[which]
+                com.telx.app.ui.common.AccountManager.switch(o.optInt("id"), Prefs.token, this)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     fun applyTheme() {
         when (Prefs.theme) {
             1 -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
             2 -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+            3 -> {
+                // Auto by time: dark 22:00 – 07:00, light otherwise
+                val cal = java.util.Calendar.getInstance()
+                val h = cal.get(java.util.Calendar.HOUR_OF_DAY)
+                AppCompatDelegate.setDefaultNightMode(
+                    if (h >= 22 || h < 7) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO)
+            }
             else -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         }
     }
@@ -197,6 +236,9 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refreshDrawerHeader()
+        saveAccountSnapshot()
+        // re-evaluate timed night mode when returning to the app
+        if (Prefs.theme == 3) applyTheme()
         Events.addListener(eventsListener)
     }
 

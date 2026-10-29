@@ -191,7 +191,8 @@ object Api {
 
     fun send(chatId: Int, type: String, text: String = "", mediaRel: String? = null, thumbRel: String? = null,
              mediaName: String = "", mediaSize: Long = 0, mediaDuration: Int = 0,
-             replyTo: Int = 0): JSONObject =
+             replyTo: Int = 0, scheduledTs: Long = 0, mediaJson: String? = null,
+             stickerFile: String? = null): JSONObject =
         call("messages", "send") {
             put("chat_id", chatId); put("type", type); put("text", text)
             if (!mediaRel.isNullOrEmpty()) put("media_rel", mediaRel)
@@ -200,6 +201,9 @@ object Api {
             if (mediaSize > 0) put("media_size", mediaSize)
             if (mediaDuration > 0) put("media_duration", mediaDuration)
             if (replyTo > 0) put("reply_to", replyTo)
+            if (scheduledTs > 0) put("scheduled_ts", scheduledTs)
+            if (!mediaJson.isNullOrEmpty()) put("media_json", mediaJson)
+            if (!stickerFile.isNullOrEmpty()) put("sticker", stickerFile)
         }
 
     fun editMessage(messageId: Int, text: String): JSONObject =
@@ -224,10 +228,42 @@ object Api {
     fun searchInChat(chatId: Int, q: String): JSONArray = call("messages", "search") { put("chat_id", chatId); put("q", q) }.getJSONArray("messages")
     fun searchGlobal(q: String): JSONObject = call("messages", "search_global") { put("q", q) }
 
+    // ---------------- media gallery / views / export / scheduled ----------------
+    fun mediaList(chatId: Int, kind: String = "media"): JSONArray =
+        call("messages", "media_list") { put("chat_id", chatId); put("kind", kind) }.getJSONArray("messages")
+
+    fun viewPing(messageIds: List<Int>) { if (messageIds.isEmpty()) return; tryCall("messages", "view_ping") {
+        put("message_ids", JSONArray().also { a -> messageIds.forEach { a.put(it) } }) } }
+
+    fun exportChat(chatId: Int): JSONObject = call("messages", "export") { put("chat_id", chatId) }
+
+    // ---------------- stickers ----------------
+    fun stickersList(): JSONObject = call("stickers", "list")
+    fun stickerPackCreate(title: String): JSONObject = call("stickers", "pack_create") { put("title", title) }
+    fun stickerAdd(packId: Int, fileRel: String): JSONObject =
+        call("stickers", "sticker_add") { put("pack_id", packId); put("file_rel", fileRel) }
+    fun stickerDelete(packId: Int, url: String) = call("stickers", "sticker_delete") { put("pack_id", packId); put("url", url) }
+    fun stickerPackDelete(packId: Int) = call("stickers", "pack_delete") { put("pack_id", packId) }
+
+    // ---------------- folders / invites ----------------
+    fun folders(): JSONArray = call("chats", "folders").getJSONArray("folders")
+    fun folderSave(folderId: Int, name: String, emoji: String): JSONObject =
+        call("chats", "folder_save") { put("folder_id", folderId); put("name", name); put("emoji", emoji) }
+    fun folderDelete(folderId: Int) = call("chats", "folder_delete") { put("folder_id", folderId) }
+    fun folderAssign(folderId: Int, chatId: Int, inside: Boolean) =
+        call("chats", "folder_assign") { put("folder_id", folderId); put("chat_id", chatId); put("inside", if (inside) 1 else 0) }
+
+    fun inviteInfo(chatId: Int, reset: Boolean = false): JSONObject =
+        call("chats", "invite") { put("chat_id", chatId); put("reset", if (reset) 1 else 0) }
+    fun joinInvite(code: String): JSONObject = call("chats", "join_invite") { put("code", code) }
+
+    fun setAutoDelete(chatId: Int, seconds: Int) = call("chats", "set_auto_delete") { put("chat_id", chatId); put("seconds", seconds) }
+
     // ---------------- contacts ----------------
     fun contactsList(): JSONArray = call("contacts", "list").getJSONArray("contacts")
     fun contactAdd(userId: Int): JSONObject = call("contacts", "add") { put("user_id", userId) }
     fun contactAddByUsername(username: String): JSONObject = call("contacts", "add") { put("username", username) }
+    fun contactAddByPhone(phone: String): JSONObject = call("contacts", "add") { put("phone", phone) }
     fun contactRemove(userId: Int) = call("contacts", "remove") { put("user_id", userId) }
     fun block(userId: Int) = call("contacts", "block") { put("user_id", userId) }
     fun unblock(userId: Int) = call("contacts", "unblock") { put("user_id", userId) }
@@ -238,7 +274,9 @@ object Api {
     fun profileGet(userId: Int = 0): JSONObject = call("profile", "get") { if (userId > 0) put("user_id", userId) }
 
     fun profileUpdate(first: String? = null, last: String? = null, bio: String? = null,
-                      username: String? = null, privacyLock: Boolean? = null, avatarRel: String? = null): JSONObject =
+                      username: String? = null, privacyLock: Boolean? = null, avatarRel: String? = null,
+                      phone: String? = null, privacyLastSeen: Int? = null,
+                      privacyPhone: Int? = null, privacyPhoto: Int? = null): JSONObject =
         call("profile", "update") {
             if (!first.isNullOrEmpty()) put("first", first)
             if (last != null) put("last", last)
@@ -246,6 +284,10 @@ object Api {
             if (!username.isNullOrEmpty()) put("username", username)
             if (privacyLock != null) put("privacy_lock", if (privacyLock) 1 else 0)
             if (avatarRel != null) put("avatar_rel", avatarRel)
+            if (phone != null) put("phone", phone)
+            if (privacyLastSeen != null) put("privacy_last_seen", privacyLastSeen)
+            if (privacyPhone != null) put("privacy_phone", privacyPhone)
+            if (privacyPhoto != null) put("privacy_photo", privacyPhoto)
         }
 
     // ---------------- stories ----------------
