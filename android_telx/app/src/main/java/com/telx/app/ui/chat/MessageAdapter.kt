@@ -286,7 +286,7 @@ class MessageAdapter(
                 inAlbum -> {
                     // v6: album — up to 4 cells with tap-to-open
                     albumRow?.visibility = View.VISIBLE
-                    val shown = albumItems.take(4)
+                    val shown = (albumItems ?: emptyList()).take(4)
                     albumCells.forEachIndexed { i, cell ->
                         if (i < shown.size) {
                             cell.visibility = View.VISIBLE

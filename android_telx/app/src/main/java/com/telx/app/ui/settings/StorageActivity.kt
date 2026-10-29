@@ -72,7 +72,8 @@ class StorageActivity : AppCompatActivity() {
         val icon = ImageView(this).apply {
             setImageResource(area.icon)
             setColorFilter(0xFF3390EC.toInt())
-            layoutParams = LinearLayout.LayoutParams(Helpers.dp(this, 26), Helpers.dp(this, 26))
+            layoutParams = LinearLayout.LayoutParams(
+                Helpers.dp(this@StorageActivity, 26), Helpers.dp(this@StorageActivity, 26))
         }
         val mid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = pad } }
         val label = TextView(this).apply { text = area.label; textSize = 15f; setTextColor(0xFF000000.toInt()) }

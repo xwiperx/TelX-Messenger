@@ -99,14 +99,14 @@ object MusicPlayerSheet {
             setPadding(pad, 0, pad, 0)
         }
         speed.setOnClickListener {
-            val newSpeed = when (player?.let { 1f }) {
-                null -> 1f
-                else -> {
-                    val cur = try { player?.playbackParams?.speed ?: 1f } catch (_: Exception) { 1f }
-                    when (cur) { 1f -> 1.5f; 1.5f -> 2f; else -> 1f }
-                }
+            val mpSpeed = player
+            val cur = if (mpSpeed != null) {
+                try { mpSpeed.playbackParams.speed } catch (_: Exception) { 1f }
+            } else 1f
+            val newSpeed = when (cur) { 1f -> 1.5f; 1.5f -> 2f; else -> 1f }
+            if (mpSpeed != null) {
+                try { mpSpeed.playbackParams = mpSpeed.playbackParams.setSpeed(newSpeed) } catch (_: Exception) {}
             }
-            try { player?.playbackParams = player?.playbackParams?.setSpeed(newSpeed) } catch (_: Exception) {}
             speed.text = "${if (newSpeed == 1.5f) "1.5" else newSpeed.toInt()}x"
         }
         seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {

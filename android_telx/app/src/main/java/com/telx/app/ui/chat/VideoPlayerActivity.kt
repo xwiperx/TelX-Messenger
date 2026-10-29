@@ -58,7 +58,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= 26 && v != null && v.isPlaying) enterPip()
     }
 
-    override fun onPictureInPictureModeChanged(isInPip: Boolean, newConfig: Configuration?) {
+    override fun onPictureInPictureModeChanged(isInPip: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPip, newConfig)
         findViewById<View>(R.id.vp_controls)?.visibility = if (isInPip) View.GONE else View.VISIBLE
         findViewById<View>(R.id.vp_toolbar)?.visibility = if (isInPip) View.GONE else View.VISIBLE

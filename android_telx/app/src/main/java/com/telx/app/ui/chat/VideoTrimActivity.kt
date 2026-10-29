@@ -81,7 +81,7 @@ class VideoTrimActivity : AppCompatActivity() {
             override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) { upd() }
             override fun onStartTrackingTouch(sb: SeekBar?) {}
             override fun onStopTrackingTouch(sb: SeekBar?) {
-                try { if (video.isPlaying) { video.seekTo(startMs) } } catch (_: Exception) {}
+                try { if (video.isPlaying) video.seekTo(startMs.toInt()) } catch (_: Exception) {}
             }
         })
         endBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
