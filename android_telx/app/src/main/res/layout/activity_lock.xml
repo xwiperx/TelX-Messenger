@@ -25,6 +25,10 @@
     <TextView android:id="@+id/lock_ok" android:layout_width="match_parent" android:layout_height="52dp"
         android:layout_marginTop="18dp" android:gravity="center" android:text="Unlock"
         android:textSize="16sp" android:textColor="#FFFFFF" android:background="@drawable/btn_primary_bg" />
+    <TextView android:id="@+id/lock_biometric" android:layout_width="match_parent" android:layout_height="52dp"
+        android:layout_marginTop="10dp" android:gravity="center" android:text="👆 Unlock with fingerprint"
+        android:textSize="15sp" android:textColor="@color/tg_blue" android:visibility="gone"
+        android:background="?android:attr/selectableItemBackground" />
     <TextView android:id="@+id/lock_forgot" android:layout_width="wrap_content" android:layout_height="wrap_content"
         android:layout_marginTop="16dp" android:text="Forgot PIN?" android:textSize="13sp"
         android:textColor="@color/tg_blue" android:padding="8dp" />

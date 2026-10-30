@@ -58,6 +58,10 @@
                 android:gravity="center_vertical" android:paddingStart="18dp" android:paddingEnd="18dp"
                 android:text="App Lock (PIN)" android:textSize="16sp" android:textColor="@color/text_primary"
                 android:background="?android:attr/selectableItemBackground" />
+            <TextView android:id="@+id/row_biometric" android:layout_width="match_parent" android:layout_height="52dp"
+                android:gravity="center_vertical" android:paddingStart="18dp" android:paddingEnd="18dp"
+                android:text="Fingerprint quick unlock" android:textSize="16sp" android:textColor="@color/text_primary"
+                android:background="?android:attr/selectableItemBackground" />
             <TextView android:id="@+id/row_blocked" android:layout_width="match_parent" android:layout_height="52dp"
                 android:gravity="center_vertical" android:paddingStart="18dp" android:paddingEnd="18dp"
                 android:text="Blocked users" android:textSize="16sp" android:textColor="@color/text_primary"

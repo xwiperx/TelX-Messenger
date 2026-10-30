@@ -50,10 +50,12 @@ jobs:
           tag: latest
           name: TelX — Latest Build
           body: |
-            🚀 TelX Messenger v5.0 — signed release build (same signature for all future updates)
+            🚀 TelX Messenger v7.0 — Liquid Glass UI + Communities, rich text 32k, AI assistant,
+            mighty polls, To-Do lists, GIF search, live stories, profile music, group calls,
+            passkey fingerprint unlock and much more.
 
             **Install:** download `TelX.apk`, enable "Install unknown apps", install.
-            If you still have the OLD TelX (before v5.0), uninstall it ONE last time first — from now on every update installs directly over the previous version.
+            Updates install directly over any v5.0+ — no uninstall needed anymore.
           artifacts: |
             TelX.apk
             TelX-debug.apk

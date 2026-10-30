@@ -45,6 +45,40 @@ class PrivacyActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.row_blocked).setOnClickListener {
             startActivity(android.content.Intent(this, com.telx.app.ui.contacts.BlockedUsersActivity::class.java))
         }
+        // v7: passkey-style biometric quick unlock
+        findViewById<TextView>(R.id.row_biometric).setOnClickListener { toggleBiometric() }
+    }
+
+    /** v7: enable / disable fingerprint quick unlock (verified live via BiometricPrompt). */
+    private fun toggleBiometric() {
+        val can = androidx.biometric.BiometricManager.from(this)
+            .canAuthenticate(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK)
+        if (can != androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) {
+            Helpers.toast(this, "No fingerprint enrolled on this device"); return
+        }
+        if (com.telx.app.data.Prefs.quickLogin) {
+            com.telx.app.data.Prefs.quickLogin = false
+            Helpers.toast(this, "Fingerprint unlock disabled")
+            return
+        }
+        val prompt = androidx.biometric.BiometricPrompt(this,
+            androidx.core.content.ContextCompat.getMainExecutor(this),
+            object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) {
+                    com.telx.app.data.Prefs.quickLogin = true
+                    Helpers.toast(this@PrivacyActivity, "Fingerprint unlock enabled 🔒")
+                }
+                override fun onAuthenticationError(code: Int, msg: CharSequence) {
+                    Helpers.toast(this@PrivacyActivity, "Verification cancelled")
+                }
+            })
+        val info = androidx.biometric.BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Enable fingerprint unlock")
+            .setSubtitle("Confirm your fingerprint to enable quick unlock")
+            .setNegativeButtonText("Cancel")
+            .setAllowedAuthenticators(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK)
+            .build()
+        prompt.authenticate(info)
     }
 
     private fun load() {

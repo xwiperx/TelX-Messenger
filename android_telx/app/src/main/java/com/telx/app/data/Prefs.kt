@@ -30,6 +30,15 @@ object Prefs {
         get() = sp.getString("my_avatar", null)
         set(v) = sp.edit().putString("my_avatar", v).apply()
 
+    /** v7: my profile music (absolute URL) + its display title. */
+    var myProfileMusicRel: String?
+        get() = sp.getString("my_profile_music", null)
+        set(v) = sp.edit().putString("my_profile_music", v).apply()
+
+    var myProfileMusicTitle: String
+        get() = sp.getString("my_profile_music_title", "") ?: ""
+        set(v) = sp.edit().putString("my_profile_music_title", v).apply()
+
     /** Long-polling cursor. */
     var sinceId: Int
         get() = sp.getInt("since_id", 0)

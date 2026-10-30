@@ -511,6 +511,10 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         m.findItem(R.id.chat_clear)?.isVisible = !c.isChannel || c.myRole == "admin"
         // v6: admin panel for groups and channels
         m.findItem(R.id.chat_admin)?.isVisible = (c.isGroup || c.isChannel) && c.isAdmin
+        // v7: secure group calls (groups/channels) + welcome message for admins
+        m.findItem(R.id.chat_gcall)?.isVisible = c.isGroup || c.isChannel
+        m.findItem(R.id.chat_welcome)?.isVisible = (c.isGroup || c.isChannel) && c.isAdmin
+        // chat_ai (AI assistant) stays visible for every chat type
     }
 
     private fun loadMessages() {
@@ -914,16 +918,30 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                 }
                 val t = input.text?.toString()?.trim() ?: ""
                 if (t.isEmpty()) { Helpers.toast(this, "Type a message first"); return@setPositiveButton }
-                ui.launch {
-                    try {
-                        withContext(Dispatchers.IO) { Api.send(chatId, "text", t, scheduledTs = picked) }
-                        Helpers.toast(this@ChatActivity, "Message scheduled")
-                    } catch (e: Exception) {
-                        Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Schedule failed")
+                pickRepeat(picked) { rep ->
+                    ui.launch {
+                        try {
+                            withContext(Dispatchers.IO) { Api.send(chatId, "text", t, scheduledTs = picked, repeatEvery = rep) }
+                            Helpers.toast(this@ChatActivity,
+                                if (rep > 0) "Recurring message scheduled 🔁" else "Message scheduled")
+                        } catch (e: Exception) {
+                            Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Schedule failed")
+                        }
                     }
                 }
             }
             .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** v7: repeating scheduled messages — hourly / 6h / daily / weekly. */
+    private fun pickRepeat(ts: Long, done: (Int) -> Unit) {
+        val labels = arrayOf("One-time only", "Every hour", "Every 6 hours", "Every day", "Every week")
+        val secs = intArrayOf(0, 3600, 21600, 86400, 604800)
+        AlertDialog.Builder(this)
+            .setTitle("Repeat this message? 🔁")
+            .setItems(labels) { _, which -> done(secs[which]) }
+            .setOnCancelListener { done(0) }
             .show()
     }
 
@@ -976,8 +994,411 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         }
         v.findViewById<LinearLayout>(R.id.attach_location).setOnClickListener { d.dismiss(); showLocationDialog() }
         v.findViewById<LinearLayout>(R.id.attach_contact).setOnClickListener { d.dismiss(); showContactShareDialog() }
+        // v7 rows: mighty poll / shared to-do / GIF search
+        v.findViewById<LinearLayout>(R.id.attach_poll).setOnClickListener { d.dismiss(); showPollCreateDialog() }
+        v.findViewById<LinearLayout>(R.id.attach_todo).setOnClickListener { d.dismiss(); showTodoCreateDialog() }
+        v.findViewById<LinearLayout>(R.id.attach_gif).setOnClickListener { d.dismiss(); showGifSheet() }
         d.setContentView(v)
         d.show()
+    }
+
+    // ================= v7: mighty polls / to-dos / GIF search / AI / group calls =================
+
+    /** Dedicated picker for poll cover photo (uploads only — does not send a message). */
+    private val pickPollPhoto = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@registerForActivityResult
+        ui.launch {
+            try {
+                val f = withContext(Dispatchers.IO) { copyToCache(uri, "poll") }
+                    ?: throw ApiErr("io", "Couldn't read the photo")
+                val up = withContext(Dispatchers.IO) { Api.upload("photo", f) }
+                pollPhotoRel = up.optString("rel")
+                pollThumbRel = up.optStringOrNull("thumb_rel")
+                f.delete()
+                Helpers.toast(this@ChatActivity, "Poll photo attached")
+            } catch (e: Exception) {
+                Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Couldn't attach photo")
+            }
+        }
+    }
+
+    /** v7: mighty poll creator — question, 2..10 options, multi-answer, quiz, optional photo. */
+    private fun showPollCreateDialog() {
+        pollPhotoRel = null; pollThumbRel = null
+        val v = layoutInflater.inflate(R.layout.dialog_poll_create, null)
+        val etQuestion = v.findViewById<EditText>(R.id.et_poll_question)
+        val box = v.findViewById<LinearLayout>(R.id.poll_options_box)
+        fun addOptionRow() {
+            if (box.childCount >= 10) { Helpers.toast(this@ChatActivity, "Maximum 10 options"); return }
+            val et = EditText(this@ChatActivity)
+            et.hint = "Option ${box.childCount + 1}"
+            et.inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                    android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            et.maxLines = 1
+            box.addView(et)
+        }
+        addOptionRow(); addOptionRow()
+        v.findViewById<TextView>(R.id.btn_poll_add_option).setOnClickListener { addOptionRow() }
+        v.findViewById<TextView>(R.id.btn_poll_add_photo).setOnClickListener { pickPollPhoto.launch(arrayOf("image/*")) }
+        val swMultiple = v.findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.sw_poll_multiple)
+        val swQuiz = v.findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.sw_poll_quiz)
+        AlertDialog.Builder(this)
+            .setTitle("📊 Create poll")
+            .setView(v)
+            .setPositiveButton("Create") { _, _ ->
+                val q = etQuestion.text.toString().trim()
+                val opts = (0 until box.childCount)
+                    .mapNotNull { (box.getChildAt(it) as? EditText)?.text?.toString()?.trim() }
+                    .filter { it.isNotEmpty() }
+                if (q.length < 2) { Helpers.toast(this@ChatActivity, "Question is too short"); return@setPositiveButton }
+                if (opts.size < 2) { Helpers.toast(this@ChatActivity, "A poll needs at least 2 options"); return@setPositiveButton }
+                val pj = JSONObject()
+                    .put("question", q)
+                    .put("options", org.json.JSONArray(opts))
+                    .put("multiple", swMultiple.isChecked)
+                    .put("quiz", swQuiz.isChecked)
+                if (pollPhotoRel != null) pj.put("media_rel", pollPhotoRel)
+                if (pollThumbRel != null) pj.put("thumb_rel", pollThumbRel)
+                if (swQuiz.isChecked) {
+                    // quiz mode: ask which option is correct before sending
+                    AlertDialog.Builder(this)
+                        .setTitle("Correct answer")
+                        .setItems(opts.toTypedArray()) { _, which ->
+                            pj.put("correct", org.json.JSONArray().put(which))
+                            sendPoll(pj)
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                } else sendPoll(pj)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun sendPoll(pj: JSONObject) {
+        ui.launch {
+            try {
+                val j = withContext(Dispatchers.IO) { Api.pollSend(chatId, pj) }
+                val real = Message(j.getJSONObject("message"))
+                messages.add(real)
+                adapter.notifyAllChanged()
+                recycler.post { recycler.scrollToPosition(adapter.lastRow()) }
+            } catch (e: Exception) {
+                Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Poll failed")
+            }
+        }
+    }
+
+    /** v7: shared to-do checklist creator (up to 30 items). */
+    private fun showTodoCreateDialog() {
+        val v = layoutInflater.inflate(R.layout.dialog_todo_create, null)
+        val etTitle = v.findViewById<EditText>(R.id.et_todo_title)
+        val box = v.findViewById<LinearLayout>(R.id.todo_items_box)
+        fun addItemRow() {
+            if (box.childCount >= 30) { Helpers.toast(this@ChatActivity, "Maximum 30 items"); return }
+            val et = EditText(this@ChatActivity)
+            et.hint = "Item ${box.childCount + 1}"
+            et.inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                    android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            et.maxLines = 1
+            box.addView(et)
+        }
+        addItemRow(); addItemRow(); addItemRow()
+        v.findViewById<TextView>(R.id.btn_todo_add_item).setOnClickListener { addItemRow() }
+        AlertDialog.Builder(this)
+            .setTitle("✅ New checklist")
+            .setView(v)
+            .setPositiveButton("Create") { _, _ ->
+                val items = org.json.JSONArray()
+                val title = etTitle.text.toString().trim()
+                if (title.isNotEmpty()) items.put(JSONObject().put("t", title).put("d", false))
+                for (i in 0 until box.childCount) {
+                    val t = (box.getChildAt(i) as? EditText)?.text?.toString()?.trim() ?: ""
+                    if (t.isNotEmpty()) items.put(JSONObject().put("t", t).put("d", false))
+                }
+                if (items.length() < 2) { Helpers.toast(this@ChatActivity, "Add at least 2 items"); return@setPositiveButton }
+                ui.launch {
+                    try {
+                        val real = withContext(Dispatchers.IO) { Api.todoSend(chatId, items) }
+                        messages.add(Message(real))
+                        adapter.notifyAllChanged()
+                        recycler.post { recycler.scrollToPosition(adapter.lastRow()) }
+                    } catch (e: Exception) {
+                        Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Couldn't create checklist")
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** v7: suggest a brand-new option on an open poll. */
+    private fun suggestPollOption(m: Message) {
+        val et = EditText(this)
+        et.hint = "Your suggestion"
+        et.inputType = android.text.InputType.TYPE_CLASS_TEXT
+        AlertDialog.Builder(this)
+            .setTitle("Suggest an option")
+            .setView(et)
+            .setPositiveButton("Send") { _, _ ->
+                val txt = et.text.toString().trim()
+                if (txt.isEmpty()) return@setPositiveButton
+                ui.launch {
+                    try {
+                        val poll = withContext(Dispatchers.IO) { Api.pollVote(m.id, emptyList(), addOption = txt) }
+                        applyPollUpdate(m.id, poll)
+                        Helpers.toast(this@ChatActivity, "Suggestion sent")
+                    } catch (e: Exception) {
+                        Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Failed")
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** Swap a message's poll with fresh data from the server (vote / close / suggestion). */
+    private fun applyPollUpdate(msgId: Int, pollJson: JSONObject) {
+        val idx = messages.indexOfFirst { it.id == msgId }
+        if (idx < 0) return
+        val rebuilt = Message(JSONObject(messages[idx].raw.toString()).put("poll", pollJson))
+        messages[idx] = rebuilt
+        adapter.notifyMessageChanged(msgId)
+    }
+
+    /** Fetch the latest poll state and repaint the bubble. */
+    private fun refreshPoll(msgId: Int) {
+        ui.launch {
+            try {
+                val poll = withContext(Dispatchers.IO) { Api.pollGet(msgId) }
+                applyPollUpdate(msgId, poll)
+            } catch (_: Exception) {}
+        }
+    }
+
+    /** Replace a message in-place with its edited/updated version from the server. */
+    private fun applyEdited(real: Message) {
+        val idx = messages.indexOfFirst { it.id == real.id }
+        if (idx >= 0) {
+            messages[idx] = real
+            adapter.notifyMessageChanged(real.id)
+        } else {
+            messages.add(real)
+            adapter.notifyAllChanged()
+        }
+    }
+
+    /** v7: GIF search sheet — search, preview grid, tap to send. */
+    private fun showGifSheet() {
+        val d = BottomSheetDialog(this)
+        val v = layoutInflater.inflate(R.layout.sheet_gif, null)
+        val input = v.findViewById<EditText>(R.id.gif_search_input)
+        val go = v.findViewById<TextView>(R.id.gif_search_go)
+        val recyclerGif = v.findViewById<RecyclerView>(R.id.gif_recycler)
+        val empty = v.findViewById<TextView>(R.id.gif_empty)
+        recyclerGif.layoutManager = androidx.recyclerview.widget.GridLayoutManager(this, 2)
+
+        fun doSearch() {
+            val q = input.text.toString().trim()
+            if (q.isEmpty()) { Helpers.toast(this@ChatActivity, "Type something first"); return }
+            empty.visibility = View.GONE
+            ui.launch {
+                try {
+                    val arr = withContext(Dispatchers.IO) { Api.gifSearch(q) }
+                    val gifs = ArrayList<Pair<String, String>>()   // url, preview
+                    for (i in 0 until arr.length()) {
+                        val g = arr.optJSONObject(i) ?: continue
+                        gifs.add(g.optString("url") to g.optString("preview"))
+                    }
+                    if (gifs.isEmpty()) { empty.text = "No GIFs found"; empty.visibility = View.VISIBLE }
+                    recyclerGif.adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+                        override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): RecyclerView.ViewHolder =
+                            object : RecyclerView.ViewHolder(layoutInflater.inflate(R.layout.item_gif, parent, false)) {}
+                        override fun getItemCount(): Int = gifs.size
+                        override fun onBindViewHolder(h: RecyclerView.ViewHolder, pos: Int) {
+                            Glide.with(h.itemView).load(gifs[pos].second).centerCrop()
+                                .into(h.itemView.findViewById<ImageView>(R.id.gif_cell_img))
+                            h.itemView.setOnClickListener {
+                                d.dismiss()
+                                sendGifFromUrl(gifs[pos].first)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    empty.text = if (e is ApiErr) e.message else "GIF search unavailable"
+                    empty.visibility = View.VISIBLE
+                }
+            }
+        }
+
+        go.setOnClickListener { doSearch() }
+        input.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) { doSearch(); true } else false
+        }
+        d.setContentView(v)
+        d.show()
+    }
+
+    /** Download a GIF from a provider URL, upload it to our server and send it. */
+    private fun sendGifFromUrl(url: String) {
+        Helpers.toast(this@ChatActivity, "Sending GIF…")
+        ui.launch {
+            try {
+                val f = withContext(Dispatchers.IO) {
+                    val f = File(cacheDir, "gif_${System.currentTimeMillis()}.gif")
+                    java.net.URL(url).openStream().use { ins -> f.outputStream().use { ins.copyTo(it) } }
+                    f
+                }
+                val up = withContext(Dispatchers.IO) { Api.upload("gif", f) }
+                f.delete()
+                sendOptimistic("gif", "", up.optString("rel"), up.optStringOrNull("thumb_rel"), 0, replyTo?.id ?: 0)
+                replyTo = null; clearReplyBar()
+            } catch (e: Exception) {
+                Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Couldn't send the GIF")
+            }
+        }
+    }
+
+    /** v7: AI writing assistant — rewrite the draft or summarize the recent chat. */
+    private fun showAiSheet() {
+        val modes = arrayOf(
+            "✨ Improve writing", "📝 Fix grammar & flow", "✂️ Make shorter",
+            "📖 Make longer", "😊 Friendlier tone", "👔 Professional tone",
+            "🪄 Draft a message for me…", "🧠 Summarize this chat")
+        val keys = arrayOf("improve", "improve", "shorten", "expand", "friendly", "formal", "generate", "sum")
+        AlertDialog.Builder(this)
+            .setTitle("AI Assistant")
+            .setItems(modes) { _, which ->
+                if (keys[which] == "sum") { summarizeChat(); return@setItems }
+                val mode = keys[which]
+                if (mode == "generate") {
+                    val et = EditText(this)
+                    et.hint = "What should the message say? (hint)"
+                    AlertDialog.Builder(this)
+                        .setTitle("Draft a message")
+                        .setView(et)
+                        .setPositiveButton("Write") { _, _ ->
+                            val hint = et.text.toString().trim()
+                            runAi(mode, hint)
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                } else runAi(mode, "")
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun runAi(mode: String, hint: String) {
+        val draft = input.text.toString().trim()
+        if (draft.isEmpty() && mode != "generate") {
+            Helpers.toast(this@ChatActivity, "Type something in the message box first"); return
+        }
+        val dlg = AlertDialog.Builder(this).setMessage("Thinking…").setCancelable(false).create()
+        dlg.show()
+        ui.launch {
+            try {
+                val result = withContext(Dispatchers.IO) { Api.aiComplete(draft, mode, hint) }
+                input.setText(result)
+                input.setSelection(input.text.length)
+            } catch (e: Exception) {
+                Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "AI is unavailable")
+            } finally { dlg.dismiss() }
+        }
+    }
+
+    private fun summarizeChat() {
+        val dlg = AlertDialog.Builder(this).setMessage("Summarizing…").setCancelable(false).create()
+        dlg.show()
+        ui.launch {
+            try {
+                val summary = withContext(Dispatchers.IO) { Api.aiSummarize(chatId = chatId) }
+                AlertDialog.Builder(this@ChatActivity)
+                    .setTitle("🧠 Chat summary")
+                    .setMessage(summary.ifEmpty { "Nothing to summarize yet" })
+                    .setPositiveButton("Copy") { _, _ ->
+                        try {
+                            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            cm.setPrimaryClip(ClipData.newPlainText("summary", summary))
+                            Helpers.toast(this@ChatActivity, "Copied")
+                        } catch (_: Exception) {}
+                    }
+                    .setNegativeButton("Close", null)
+                    .show()
+            } catch (e: Exception) {
+                Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Summary unavailable")
+            } finally { dlg.dismiss() }
+        }
+    }
+
+    /** v7: welcome message for new members (admins only, groups/channels). */
+    private fun showWelcomeDialog() {
+        val et = EditText(this)
+        et.hint = "Welcome text shown privately to every new member"
+        et.setText(chat?.welcome ?: "")
+        et.minLines = 3
+        et.gravity = Gravity.TOP or Gravity.START
+        AlertDialog.Builder(this)
+            .setTitle("👋 Welcome message")
+            .setMessage("Sent automatically to each new member. Only they can see it.")
+            .setView(et)
+            .setPositiveButton("Save") { _, _ ->
+                val txt = et.text.toString().trim()
+                ui.launch {
+                    try {
+                        withContext(Dispatchers.IO) { Api.setWelcome(chatId, txt) }
+                        chat?.raw?.putOpt("welcome", txt)
+                        Helpers.toast(this@ChatActivity, "Welcome message saved")
+                    } catch (e: Exception) {
+                        Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Failed")
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** v7: secure group call sheet — start/join/leave/end with live participant list. */
+    private fun showGroupCallSheet() {
+        val dlg = AlertDialog.Builder(this)
+            .setTitle("🔒 Group call")
+            .setMessage("Starting a secure group call…")
+            .setCancelable(false)
+            .create()
+        dlg.show()
+        ui.launch {
+            var callId = ""
+            try {
+                val j = withContext(Dispatchers.IO) { Api.groupCallStart(chatId) }
+                callId = j.optString("call_id")
+                val pj = withContext(Dispatchers.IO) { Api.groupCallParticipants(chatId) }
+                dlg.dismiss()
+                val names = pj.optJSONArray("participants")
+                val sb = StringBuilder()
+                var count = 0
+                if (names != null) for (i in 0 until names.length()) {
+                    val u = names.optJSONObject(i) ?: continue
+                    sb.append("• ").append(u.optString("name")).append("\n"); count++
+                }
+                AlertDialog.Builder(this@ChatActivity)
+                    .setTitle("🔒 Group call — $count in call")
+                    .setMessage(if (count > 0) sb.toString().trim() else "You are the first one here")
+                    .setPositiveButton("Leave") { _, _ ->
+                        ui.launch { try { withContext(Dispatchers.IO) { Api.groupCallLeave(chatId) } } catch (_: Exception) {} }
+                    }
+                    .setNeutralButton("End for all") { _, _ ->
+                        ui.launch {
+                            try { withContext(Dispatchers.IO) { Api.groupCallEnd(chatId, callId) } }
+                            catch (e: Exception) { Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Failed") }
+                        }
+                    }
+                    .setNegativeButton("Close", null)
+                    .show()
+            } catch (e: Exception) {
+                dlg.dismiss()
+                Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Group call failed")
+            }
+        }
     }
 
     /** Share a location: prefill from last-known GPS when permitted, else manual. */
@@ -1521,6 +1942,11 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
             R.id.chat_report -> reportChat()
             R.id.chat_export -> showExportDialog()
             R.id.chat_autodelete -> showAutoDeleteDialog()
+            R.id.chat_schedule -> scheduleMessage()
+            // v7: group calls / AI assistant / welcome message
+            R.id.chat_gcall -> showGroupCallSheet()
+            R.id.chat_ai -> showAiSheet()
+            R.id.chat_welcome -> showWelcomeDialog()
         }
         return true
     }

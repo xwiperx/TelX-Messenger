@@ -1,6 +1,7 @@
 package com.telx.app.ui.profile
 
 import android.content.Intent
+import android.media.MediaPlayer
 import android.os.Bundle
 import android.view.View
 import android.widget.TextView
@@ -32,10 +33,14 @@ class UserProfileActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var username: TextView
     private lateinit var bio: TextView
+    private lateinit var music: TextView
     private lateinit var btnMessage: MaterialButton
     private lateinit var btnContact: MaterialButton
     private lateinit var btnBlock: TextView
     private lateinit var btnEdit: MaterialButton
+
+    // v7: profile music streaming player
+    private var musicPlayer: MediaPlayer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,10 +54,12 @@ class UserProfileActivity : AppCompatActivity() {
         status = findViewById(R.id.up_status)
         username = findViewById(R.id.up_username)
         bio = findViewById(R.id.up_bio)
+        music = findViewById(R.id.up_music)
         btnMessage = findViewById(R.id.up_message)
         btnContact = findViewById(R.id.up_contact)
         btnBlock = findViewById(R.id.up_block)
         btnEdit = findViewById(R.id.up_edit)
+        music.setOnClickListener { toggleProfileMusic() }
         avatar.setOnClickListener {
             val url = user?.avatar ?: Prefs.myAvatar
             if (!url.isNullOrEmpty())
@@ -144,6 +151,13 @@ class UserProfileActivity : AppCompatActivity() {
         username.text = if (u.username.isNotEmpty()) "@${u.username}" else "No username"
         if (u.username.isNotEmpty()) username.setCompoundDrawablesWithIntrinsicBounds(0, 0, R.drawable.ic_qr, 0)
         bio.text = if (u.bio.isEmpty()) "No bio yet" else u.bio
+        // v7: profile music row (Telegram-style tune under the bio)
+        if (u.profileMusic.isNullOrEmpty()) {
+            music.visibility = View.GONE
+        } else {
+            music.visibility = View.VISIBLE
+            music.text = "🎵 ${u.profileMusicTitle.ifEmpty { "Listen to music" }}  ▶"
+        }
         btnContact.text = if (u.isContact) "Remove contact" else "Add contact"
         btnBlock.text = if (u.blockedByMe) "Unblock user" else "Block user"
         if (u.isMe) {
@@ -159,6 +173,43 @@ class UserProfileActivity : AppCompatActivity() {
             btnEdit.visibility = View.GONE
             // v6: long-press the name to report this user
             name.setOnLongClickListener { reportUser(); true }
+        }
+    }
+
+    /** v7: stream the profile tune with MediaPlayer — tap again to stop. */
+    private fun toggleProfileMusic() {
+        val u = user ?: return
+        val url = u.profileMusic ?: return
+        if (musicPlayer?.isPlaying == true) {
+            stopProfileMusic(); return
+        }
+        stopProfileMusic()
+        Helpers.toast(this, "Loading track…")
+        try {
+            val mp = MediaPlayer()
+            mp.setAudioAttributes(android.media.AudioAttributes.Builder()
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                .setUsage(android.media.AudioAttributes.USAGE_MEDIA).build())
+            mp.setDataSource(url)
+            mp.setOnPreparedListener {
+                musicPlayer = mp
+                mp.start()
+                music.text = "🎵 ${u.profileMusicTitle.ifEmpty { "Listen to music" }}  ⏸"
+            }
+            mp.setOnCompletionListener { stopProfileMusic() }
+            mp.setOnErrorListener { _, _, _ -> stopProfileMusic(); true }
+            mp.prepareAsync()
+        } catch (_: Exception) {
+            Helpers.toast(this, "Couldn't play this track")
+        }
+    }
+
+    private fun stopProfileMusic() {
+        try { musicPlayer?.stop(); musicPlayer?.release() } catch (_: Exception) {}
+        musicPlayer = null
+        user?.let { u ->
+            if (!u.profileMusic.isNullOrEmpty())
+                music.text = "🎵 ${u.profileMusicTitle.ifEmpty { "Listen to music" }}  ▶"
         }
     }
 
@@ -183,6 +234,11 @@ class UserProfileActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         user?.let { load(it.id) }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        stopProfileMusic()
     }
 
     override fun onSupportNavigateUp(): Boolean { finish(); return true }

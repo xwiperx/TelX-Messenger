@@ -57,6 +57,13 @@ class StoriesActivity : AppCompatActivity() {
     private lateinit var btnDelete: ImageView
     private lateinit var btnViewers: TextView
     private lateinit var emptyView: TextView
+    // v7: live stories + reply thread
+    private lateinit var liveBadge: TextView
+    private lateinit var btnReplies: TextView
+    private lateinit var btnEndLive: ImageView
+    private lateinit var replyBar: LinearLayout
+    private lateinit var replyInput: android.widget.EditText
+    private lateinit var replySend: ImageView
 
     private val currentGroup: StoryGroup?
         get() = groups.getOrNull(groupIndex)
@@ -80,11 +87,24 @@ class StoriesActivity : AppCompatActivity() {
         btnDelete = findViewById(R.id.story_delete)
         btnViewers = findViewById(R.id.story_viewers)
         emptyView = findViewById(R.id.story_empty)
+        // v7
+        liveBadge = findViewById(R.id.story_live_badge)
+        btnReplies = findViewById(R.id.story_replies)
+        btnEndLive = findViewById(R.id.story_end_live)
+        replyBar = findViewById(R.id.story_reply_bar)
+        replyInput = findViewById(R.id.story_reply_input)
+        replySend = findViewById(R.id.story_reply_send)
 
         btnClose.setOnClickListener { finish() }
         btnDelete.setOnClickListener { confirmDelete() }
         btnViewers.setOnClickListener { showViewers() }
         emptyView.setOnClickListener { finish() }
+        btnReplies.setOnClickListener { showReplies() }
+        btnEndLive.setOnClickListener { confirmEndLive() }
+        replySend.setOnClickListener { sendReply() }
+        replyInput.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND) { sendReply(); true } else false
+        }
 
         mediaFrame.setOnTouchListener { _, ev ->
             when (ev.action) {
@@ -146,6 +166,12 @@ class StoriesActivity : AppCompatActivity() {
         btnDelete.visibility = if (isMine) View.VISIBLE else View.GONE
         btnViewers.visibility = if (isMine) View.VISIBLE else View.GONE
         if (isMine) btnViewers.text = "${s.views} views"
+        // v7: live badge + owner tools + viewer reply bar
+        liveBadge.visibility = if (s.isLive) View.VISIBLE else View.GONE
+        btnEndLive.visibility = if (isMine && s.isLive) View.VISIBLE else View.GONE
+        btnReplies.visibility = if (isMine) View.VISIBLE else View.GONE
+        replyBar.visibility = if (isMine) View.GONE else View.VISIBLE
+        replyInput.setText("")
 
         // progress bars
         barsRow.removeAllViews()
@@ -166,13 +192,15 @@ class StoriesActivity : AppCompatActivity() {
         if (s.type == "video" && !s.media.isNullOrEmpty()) {
             videoView.visibility = View.VISIBLE
             videoView.setVideoURI(Uri.parse(s.media))
-            videoView.setOnPreparedListener { mp -> mp.isLooping = false; mp.start() }
-            videoView.setOnCompletionListener { goNext() }
-            runProgress(-1)
+            videoView.setOnPreparedListener { mp -> mp.isLooping = s.isLive; mp.start() }
+            videoView.setOnCompletionListener { if (!s.isLive) goNext() }
+            // live video has no countdown either — the owner ends it
+            runProgress(if (s.isLive) 0 else -1)
         } else {
             imageView.visibility = View.VISIBLE
             Glide.with(this).load(s.media ?: s.thumb).into(imageView)
-            runProgress(s.duration.coerceIn(5, 60))
+            // live stories stay open until the owner ends them — no countdown
+            runProgress(if (s.isLive) 0 else s.duration.coerceIn(5, 60))
         }
 
         if (!g.user.isMe) {
@@ -320,5 +348,67 @@ class StoriesActivity : AppCompatActivity() {
         progressJob?.cancel()
         videoView.stopPlayback()
         super.onDestroy()
+    }
+
+    // ---------------- v7: story replies / live stories ----------------
+
+    /** Viewer sends a reply to this story — lands in the owner's chat thread. */
+    private fun sendReply() {
+        val s = currentStory ?: return
+        val txt = replyInput.text.toString().trim()
+        if (txt.isEmpty()) { Helpers.toast(this, "Type a reply first"); return }
+        replyInput.setText("")
+        ui.launch {
+            try {
+                withContext(Dispatchers.IO) { Api.storyReply(s.id, txt) }
+                Helpers.toast(this@StoriesActivity, "Reply sent")
+            } catch (e: Exception) {
+                Helpers.toast(this@StoriesActivity, if (e is com.telx.app.data.ApiErr) e.message else "Reply failed")
+            }
+        }
+    }
+
+    /** Owner reads the replies to their story (live chat thread). */
+    private fun showReplies() {
+        val s = currentStory ?: return
+        ui.launch {
+            try {
+                val arr = withContext(Dispatchers.IO) { Api.storyReplies(s.id) }
+                val lines = ArrayList<String>()
+                for (i in 0 until arr.length()) {
+                    val r = arr.optJSONObject(i) ?: continue
+                    val name = r.optJSONObject("user")?.optString("name") ?: "?"
+                    lines.add("💬 $name:  " + r.optString("text"))
+                }
+                AlertDialog.Builder(this@StoriesActivity)
+                    .setTitle("Replies (${lines.size})")
+                    .setItems(if (lines.isEmpty()) arrayOf("No replies yet") else lines.toTypedArray(), null)
+                    .setPositiveButton("Close", null)
+                    .show()
+            } catch (e: Exception) {
+                Helpers.toast(this@StoriesActivity, if (e is com.telx.app.data.ApiErr) e.message else "Couldn't load replies")
+            }
+        }
+    }
+
+    /** Owner ends a live story — it turns into a normal expired story. */
+    private fun confirmEndLive() {
+        val s = currentStory ?: return
+        AlertDialog.Builder(this)
+            .setTitle("End live story?")
+            .setMessage("The live badge disappears and the story is archived normally.")
+            .setPositiveButton("End live") { _, _ ->
+                ui.launch {
+                    try {
+                        withContext(Dispatchers.IO) { Api.storyEndLive(s.id) }
+                        Helpers.toast(this@StoriesActivity, "Live ended")
+                        showStory()
+                    } catch (e: Exception) {
+                        Helpers.toast(this@StoriesActivity, if (e is com.telx.app.data.ApiErr) e.message else "Failed")
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 }

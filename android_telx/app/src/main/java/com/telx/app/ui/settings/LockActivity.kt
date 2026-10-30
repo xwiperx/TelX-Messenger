@@ -45,6 +45,37 @@ class LockActivity : AppCompatActivity() {
                 .setMessage("The PIN is stored only on this device. To reset it you must clear the app's storage (Android Settings → Apps → TelX → Storage → Clear data).")
                 .setPositiveButton("OK", null).show()
         }
+        // v7: passkey-style biometric quick unlock (enabled in Privacy & Security)
+        val btnBio = findViewById<TextView>(R.id.lock_biometric)
+        val canBio = com.telx.app.data.Prefs.quickLogin &&
+            androidx.biometric.BiometricManager.from(this)
+                .canAuthenticate(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK) ==
+                androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS
+        if (canBio) {
+            btnBio.visibility = android.view.View.VISIBLE
+            btnBio.setOnClickListener { askBiometric() }
+            btnBio.postDelayed({ askBiometric() }, 350)   // gentle auto-prompt
+        }
+    }
+
+    /** v7: unlock the app with the device fingerprint / face. */
+    private fun askBiometric() {
+        val prompt = androidx.biometric.BiometricPrompt(this,
+            androidx.core.content.ContextCompat.getMainExecutor(this),
+            object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) {
+                    AppLock.unlockSuccess()
+                    Helpers.toast(this@LockActivity, "Unlocked")
+                    finish()
+                }
+            })
+        val info = androidx.biometric.BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Unlock TelX")
+            .setSubtitle("Confirm your fingerprint to continue")
+            .setNegativeButtonText("Use PIN")
+            .setAllowedAuthenticators(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK)
+            .build()
+        try { prompt.authenticate(info) } catch (_: Exception) {}
     }
 
     private fun check(input: EditText, err: TextView) {

@@ -61,6 +61,8 @@ class ReplyInfo(j: JSONObject) {
 }
 
 class Message(j: JSONObject) {
+    /** v7: original JSON kept so poll/edit updates can rebuild this message. */
+    val raw: JSONObject = j
     val id: Int = j.optInt("id")
     val chatId: Int = j.optInt("chat_id")
     val senderId: Int = j.optInt("sender_id")
@@ -153,6 +155,8 @@ fun JSONObject.optStringOrNull(key: String): String? =
     if (has(key) && !isNull(key)) getString(key) else null
 
 class Chat(j: JSONObject) {
+    /** v7: original JSON kept so admin edits can update this chat locally. */
+    val raw: JSONObject = j
     val id: Int = j.optInt("id")
     val type: String = j.optString("type", "private")
     val title: String = j.optString("title", "")

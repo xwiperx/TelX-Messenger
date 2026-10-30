@@ -206,7 +206,7 @@ class MainActivity : AppCompatActivity() {
                     try {
                         val j = withContext(Dispatchers.IO) {
                             Api.communityCreate(title, etDesc.text?.toString()?.trim().orEmpty(),
-                                etUser.text?.toString()?.trim().removePrefix("@").orEmpty())
+                                etUser.text?.toString()?.trim()?.removePrefix("@").orEmpty())
                         }
                         Helpers.toast(this@MainActivity, "Community created")
                         startActivity(Intent(this@MainActivity,
