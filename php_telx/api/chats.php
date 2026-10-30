@@ -34,6 +34,9 @@ function chat_public(array $chat, array $my_membership, int $viewer, ?array $pee
     $a['join_request'] = (int)($chat['join_request'] ?? 0) === 1;
     $a['hidden'] = (int)($my_membership['hidden'] ?? 0) === 1;
     $a['perms'] = !empty($chat['perms']) ? json_decode($chat['perms'], true) : null;
+    // v7: welcome message text (admins see it in the admin panel)
+    if (!empty($chat['welcome_msg'])) $a['welcome'] = (string)$chat['welcome_msg'];
+    else $a['welcome'] = null;
     if ($chat['last_message_id']) {
         $m = message_by_id((int)$chat['last_message_id']);
         if ($m && !(int)$m['deleted']) {
@@ -240,6 +243,8 @@ case 'join_channel': {
         ok(['chat_id' => $cid, 'joined' => false, 'requested' => true]);
     }
     db()->prepare("INSERT INTO chat_members (chat_id, user_id, role, joined_at) VALUES (?,?,'member',UTC_TIMESTAMP())")->execute([$cid, $me['uid']]);
+    // v7: send the admin's welcome message to the new subscriber (visible only to them)
+    deliver_welcome($cid, (int)$me['uid']);
     emit(chat_member_ids($cid, (int)$me['uid']), 'chat_updated', ['chat_id' => $cid], $cid, (int)$me['uid']);
     emit($me['uid'], 'chat_created', ['chat_id' => $cid], $cid);
     ok(['chat_id' => $cid, 'joined' => true]);
@@ -587,6 +592,7 @@ case 'join_invite': {
                            VALUES (?,NULL,'','system',?,UTC_TIMESTAMP())")
                 ->execute([$cid, trim($me['first_name']) . ' joined via invite link']);
         }
+        deliver_welcome($cid, (int)$me['uid']);   // v7
         emit(chat_member_ids($cid, (int)$me['uid']), 'chat_updated', ['chat_id' => $cid], $cid, (int)$me['uid']);
         emit($me['uid'], 'chat_created', ['chat_id' => $cid], $cid);
         ok(['chat_id' => $cid, 'joined' => true]);
@@ -614,6 +620,7 @@ case 'join_invite': {
                        VALUES (?,NULL,'','system',?,UTC_TIMESTAMP())")
             ->execute([$cid, trim($me['first_name']) . ' joined via invite link']);
     }
+    deliver_welcome($cid, (int)$me['uid']);   // v7
     emit(chat_member_ids($cid, (int)$me['uid']), 'chat_updated', ['chat_id' => $cid], $cid, (int)$me['uid']);
     emit($me['uid'], 'chat_created', ['chat_id' => $cid], $cid);
     ok(['chat_id' => $cid, 'joined' => true]);
@@ -839,6 +846,7 @@ case 'request_decide': {
         }
         emit(chat_member_ids($cid), 'chat_updated', ['chat_id' => $cid], $cid, (int)$me['uid']);
         emit($uid, 'chat_created', ['chat_id' => $cid], $cid);
+        deliver_welcome($cid, $uid);   // v7
     }
     emit($uid, 'join_request_result', ['chat_id' => $cid, 'approved' => $approve, 'chat_title' => (string)$chat['title']], $cid, (int)$me['uid']);
     ok(['approved' => $approve]);
@@ -901,6 +909,46 @@ case 'chat_stats': {
     ok(['stats' => ['members' => $members, 'messages' => (int)$st->fetch()['c'], 'views' => $views,
                     'growth' => $growth, 'activity' => $activity, 'top' => $top,
                     'type' => $chat['type']]]);
+}
+
+/* ================= v7: welcome messages + read-all ================= */
+
+case 'set_welcome': {
+    $me = me();
+    $cid = pint('chat_id');
+    $m = require_member($cid);
+    if ((string)$m['role'] !== 'admin') fail('forbidden', 'Only admins can set the welcome message');
+    $text = trim((string)(p('text') ?? ''));
+    if (mb_strlen($text) > 500) $text = mb_substr($text, 0, 500);
+    db()->prepare('UPDATE chats SET welcome_msg = ? WHERE id = ?')
+        ->execute([$text !== '' ? $text : null, $cid]);
+    ok(['welcome' => $text !== '' ? $text : null]);
+}
+
+case 'mark_all_read': {
+    $me = me();
+    $st = db()->prepare('SELECT chat_id, MAX(id) as maxid FROM messages WHERE chat_id IN
+                         (SELECT chat_id FROM chat_members WHERE user_id = ?) AND deleted = 0
+                         GROUP BY chat_id');
+    $st->execute([$me['uid']]);
+    $upd = db()->prepare('UPDATE chat_members SET unread_count = 0, last_read_message_id = ?, last_delivered_message_id = ? WHERE chat_id = ? AND user_id = ?');
+    $affected = [];
+    foreach ($st->fetchAll() as $r) {
+        $max = (int)$r['maxid'];
+        $upd->execute([$max, $max, (int)$r['chat_id'], $me['uid']]);
+        $affected[(int)$r['chat_id']] = $max;
+    }
+    // tell peers their messages were read
+    foreach ($affected as $cid => $max) {
+        $chat = chat_of($cid);
+        if ($chat && ($chat['type'] === 'private' || $chat['type'] === 'group' || $chat['type'] === 'channel')) {
+            $targets = $chat['type'] === 'private'
+                ? array_map('intval', array_column(array_filter([peer_of_private($cid, (int)$me['uid'])], fn($x) => $x !== null), 'uid'))
+                : chat_member_ids($cid, (int)$me['uid']);
+            if ($targets) emit($targets, 'message_read', ['chat_id' => $cid, 'last_read_id' => $max], $cid, (int)$me['uid']);
+        }
+    }
+    ok(['chats' => count($affected)]);
 }
 
 default: fail('unknown_action', 'Unknown chats action');

@@ -6,4 +6,54 @@
         android:title="Search"
         android:icon="@drawable/ic_search"
         app:showAsAction="always" />
+    <item
+        android:id="@+id/main_new_group"
+        android:title="New Group"
+        android:icon="@drawable/ic_group"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/main_new_channel"
+        android:title="New Channel"
+        android:icon="@drawable/ic_channel"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/main_new_community"
+        android:title="New Community"
+        android:icon="@drawable/ic_community"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/main_new_secret"
+        android:title="New Secret Chat"
+        android:icon="@drawable/ic_lock"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/main_new_message"
+        android:title="New Message"
+        android:icon="@drawable/ic_edit"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/main_saved"
+        android:title="Saved Messages"
+        android:icon="@drawable/ic_bookmark"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/main_mark_read"
+        android:title="Mark All Read"
+        android:icon="@drawable/ic_markread"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/main_add_account"
+        android:title="Add Account"
+        android:icon="@drawable/ic_add"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/main_switch_account"
+        android:title="Switch Account"
+        android:icon="@drawable/ic_person"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/main_night"
+        android:title="Night Mode"
+        android:icon="@drawable/ic_moon"
+        app:showAsAction="never" />
 </menu>

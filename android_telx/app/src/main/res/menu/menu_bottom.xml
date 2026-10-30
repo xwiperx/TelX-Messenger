@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/nav_bottom_chats" android:icon="@drawable/ic_chat_bubble" android:title="Chats" />
+    <item android:id="@+id/nav_bottom_contacts" android:icon="@drawable/ic_group" android:title="Contacts" />
+    <item android:id="@+id/nav_bottom_settings" android:icon="@drawable/ic_settings" android:title="Settings" />
+    <item android:id="@+id/nav_bottom_profile" android:icon="@drawable/ic_person" android:title="Profile" />
+</menu>

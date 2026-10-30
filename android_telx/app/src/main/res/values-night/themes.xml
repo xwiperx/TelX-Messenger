@@ -26,4 +26,9 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
     </style>
+
+    <!-- v7 Liquid Glass: pill indicator on the bottom bar -->
+    <style name="Widget.TelX.GlassIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">@color/glass_tint</item>
+    </style>
 </resources>

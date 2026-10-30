@@ -11,8 +11,8 @@ android {
         applicationId "com.telx.app"
         minSdk 23
         targetSdk 34
-        versionCode 6
-        versionName "6.0"
+        versionCode 7
+        versionName "7.0"
     }
 
     buildFeatures {
@@ -62,4 +62,6 @@ dependencies {
     implementation "com.github.bumptech.glide:glide:4.16.0"
     // QR codes (Maven Central) — profile QR + scanning from image
     implementation "com.google.zxing:core:3.5.3"
+    // v7: biometric quick login (passkey-style unlock)
+    implementation "androidx.biometric:biometric:1.1.0"
 }

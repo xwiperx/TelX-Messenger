@@ -14,4 +14,9 @@
     <color name="tg_blue_light">#1C2C3A</color>
     <color name="date_pill">#182533</color>
     <color name="date_text">#9FB2BF</color>
+    <!-- v7 Liquid Glass (night) -->
+    <color name="glass_bar">#E617212B</color>
+    <color name="glass_panel">#F01B2733</color>
+    <color name="glass_stroke">#2EFFFFFF</color>
+    <color name="glass_tint">#333390EC</color>
 </resources>

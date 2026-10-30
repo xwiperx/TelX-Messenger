@@ -107,6 +107,38 @@
                     android:textSize="12sp" android:textColor="#D8E9FF" android:maxLines="1" />
             </LinearLayout>
         </LinearLayout>
+        
+        <!-- v7: ephemeral (private-to-one) tag -->
+        <TextView android:id="@+id/msg_ephemeral" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textSize="11sp" android:textStyle="italic" android:textColor="#D8E9FF"
+            android:text="👁 Only you can see this" android:visibility="gone" android:paddingBottom="2dp" />
+        <!-- v7: inline rich media segments -->
+        <LinearLayout android:id="@+id/msg_inline_block" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:orientation="vertical" android:visibility="gone" android:layout_marginBottom="4dp" />
+        <!-- v7: mighty poll -->
+        <LinearLayout android:id="@+id/msg_poll_block" android:layout_width="240dp" android:layout_height="wrap_content"
+            android:orientation="vertical" android:visibility="gone" android:layout_marginBottom="4dp">
+            <TextView android:id="@+id/poll_question" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textSize="15sp" android:textStyle="bold" android:textColor="#FFFFFF" />
+            <ImageView android:id="@+id/poll_media" android:layout_width="match_parent" android:layout_height="120dp"
+                android:scaleType="centerCrop" android:visibility="gone" android:layout_marginTop="6dp"
+                android:contentDescription="poll photo" />
+            <LinearLayout android:id="@+id/poll_options" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:layout_marginTop="8dp" />
+            <TextView android:id="@+id/poll_meta" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textSize="11sp" android:textColor="#D8E9FF" android:paddingTop="6dp" />
+        </LinearLayout>
+        <!-- v7: shared to-do checklist -->
+        <LinearLayout android:id="@+id/msg_todo_block" android:layout_width="240dp" android:layout_height="wrap_content"
+            android:orientation="vertical" android:visibility="gone" android:layout_marginBottom="4dp">
+            <LinearLayout android:id="@+id/todo_items" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" />
+            <TextView android:id="@+id/todo_meta" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textSize="11sp" android:textColor="#D8E9FF" android:paddingTop="6dp" />
+        </LinearLayout>
+        <!-- v7: interactive buttons -->
+        <LinearLayout android:id="@+id/msg_buttons" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:orientation="vertical" android:visibility="gone" android:layout_marginTop="4dp" />
         <ImageView android:id="@+id/msg_round_video" android:layout_width="190dp" android:layout_height="190dp"
             android:layout_gravity="center_horizontal" android:visibility="gone" android:contentDescription="video message" />
         <LinearLayout android:id="@+id/msg_reactions" android:layout_width="wrap_content" android:layout_height="wrap_content"

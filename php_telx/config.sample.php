@@ -15,6 +15,16 @@ const MAX_UPLOAD = 200 * 1024 * 1024;          // 200 MB
 const LONGPOLL_TIMEOUT = 22;                   // seconds of server-side wait
 const STORY_TTL = 86400;                        // 24h
 
+/* v7 — optional integrations (leave empty for privacy/local mode): */
+// OpenAI-compatible endpoint for the AI writing assistant + chat summaries
+// (e.g. 'https://api.openai.com/v1/chat/completions'). Empty = local engine.
+const AI_URL = '';
+const AI_KEY = '';
+const AI_MODEL = 'gpt-4o-mini';
+// GIF search provider: 'giphy' (default, uses public demo key) or 'tenor'
+const GIF_PROVIDER = 'giphy';
+const GIF_KEY = '';
+
 date_default_timezone_set('UTC');
 error_reporting(E_ALL & ~E_DEPRECATED & ~E_NOTICE);
 ini_set('display_errors', '0');
@@ -364,6 +374,19 @@ function ensure_saved_chat(int $uid): int {
 }
 
 /* ---------- Message assembler ---------- */
+/** v7: deliver the chat's welcome message to a brand-new member (visible only to them). */
+function deliver_welcome(int $chat_id, int $uid): void {
+    $chat = chat_of($chat_id);
+    if (!$chat || empty($chat['welcome_msg'])) return;
+    $title = (string)$chat['title'];
+    $text = "\xF0\x9F\x91\x8B Welcome to " . $title . "!\n\n" . (string)$chat['welcome_msg'];
+    db()->prepare("INSERT INTO messages (chat_id, sender_id, sender_name, type, text, ephemeral_to, created_at)\n                   VALUES (?, NULL, ?, 'system', ?, ?, UTC_TIMESTAMP())")
+        ->execute([$chat_id, $title, $text, $uid]);
+    $mid = (int)db()->lastInsertId();
+    emit($uid, 'message_new', ['chat_id' => $chat_id,
+        'message' => msg_public(message_by_id($mid), $uid)], $chat_id);
+}
+
 function msg_public(array $m, int $viewer): array {
     $enc = (int)$m['encrypted'] === 1;
     $a = [
@@ -437,6 +460,24 @@ function flush_due(): void {
             $pdo->prepare('UPDATE chat_members SET unread_count = unread_count + 1 WHERE chat_id = ? AND user_id = ?')
                 ->execute([$m['chat_id'], $uid]);
             emit($uid, 'message_new', ['chat_id' => (int)$m['chat_id'], 'message' => msg_public($m, $uid)], (int)$m['chat_id'], (int)($m['sender_id'] ?? 0));
+        }
+        // v7: recurring scheduled messages — clone the post for the next interval
+        $repeat = (int)($m['repeat_every'] ?? 0);
+        if ($repeat > 0) {
+            $next = time() + $repeat;
+            $pdo->prepare('INSERT INTO messages (chat_id, sender_id, sender_name, type, text, media, thumb,
+                            media_name, media_size, media_duration, sticker, link_json, media_json, reply_to,
+                            silent, anon, effect, buttons, inline_json, repeat_every, scheduled_at, created_at)
+                          VALUES (:chat_id, :sender_id, :sender_name, :type, :text, :media, :thumb,
+                            :media_name, :media_size, :media_duration, :sticker, :link_json, :media_json, :reply_to,
+                            :silent, :anon, :effect, :buttons, :inline_json, :repeat_every, :scheduled_at, UTC_TIMESTAMP())')
+                ->execute(['chat_id' => $m['chat_id'], 'sender_id' => $m['sender_id'], 'sender_name' => $m['sender_name'],
+                    'type' => $m['type'], 'text' => $m['text'], 'media' => $m['media'], 'thumb' => $m['thumb'],
+                    'media_name' => $m['media_name'], 'media_size' => $m['media_size'], 'media_duration' => $m['media_duration'],
+                    'sticker' => $m['sticker'], 'link_json' => $m['link_json'], 'media_json' => $m['media_json'],
+                    'reply_to' => $m['reply_to'], 'silent' => $m['silent'], 'anon' => $m['anon'],
+                    'effect' => $m['effect'], 'buttons' => $m['buttons'], 'inline_json' => $m['inline_json'],
+                    'repeat_every' => $repeat, 'scheduled_at' => sqlts($next)]);
         }
     }
     $st = $pdo->query("SELECT id, chat_id FROM messages WHERE auto_delete_at IS NOT NULL AND auto_delete_at <= UTC_TIMESTAMP() AND deleted = 0 LIMIT 50");

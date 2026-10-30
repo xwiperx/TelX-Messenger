@@ -78,6 +78,12 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
     private var anonSend = false
     private var pendingEffect: String? = null
     private var albumGroupId = 0L
+    // v7: one-shot send options
+    private var ephemeralTarget = 0   // >0 → next message visible only to that member (admin)
+    private var pollPhotoRel: String? = null
+    private var pollThumbRel: String? = null
+    private var gcallJob: Job? = null
+    private var aiBusy = false
 
     private lateinit var recycler: RecyclerView
     private lateinit var toolbar: Toolbar
@@ -234,6 +240,59 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
         adapter.onMessageClick = { msg ->
             if (selecting) toggleSelect(msg)
             else showMessageActions(msg)
+        }
+        // v7 callbacks: polls / to-dos / interactive buttons / inline media
+        adapter.onPollVote = { m, idx ->
+            if (idx < 0) suggestPollOption(m)
+            else ui.launch {
+                try {
+                    val poll = withContext(Dispatchers.IO) { Api.pollVote(m.id, listOf(idx)) }
+                    applyPollUpdate(m.id, poll)
+                } catch (e: Exception) { Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Vote failed") }
+            }
+        }
+        adapter.onPollClose = { m ->
+            AlertDialog.Builder(this)
+                .setMessage("Stop this poll? Final results stay visible.")
+                .setPositiveButton("Stop") { _, _ ->
+                    ui.launch {
+                        try {
+                            withContext(Dispatchers.IO) { Api.pollClose(m.id) }
+                            refreshPoll(m.id)
+                        } catch (e: Exception) { Helpers.toast(this@ChatActivity, "Failed") }
+                    }
+                }
+                .setNegativeButton("Cancel", null).show()
+        }
+        adapter.onPollSuggest = { m -> suggestPollOption(m) }
+        adapter.onTodoToggle = { m, idx, done ->
+            ui.launch {
+                try {
+                    val upd = withContext(Dispatchers.IO) { Api.todoToggle(m.id, idx, done) }
+                    val real = Message(upd.getJSONObject("message"))
+                    applyEdited(real)
+                } catch (e: Exception) { Helpers.toast(this@ChatActivity, "Failed to update checklist") }
+            }
+        }
+        adapter.onButtonClick = { m, btnId, url ->
+            if (url != null) {
+                if (com.telx.app.data.Prefs.useInAppBrowser)
+                    startActivity(Intent(this, com.telx.app.ui.common.BrowserActivity::class.java).putExtra("url", url))
+                else try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                } catch (_: Exception) {}
+            }
+            ui.launch {
+                try { withContext(Dispatchers.IO) { Api.buttonClick(m.id, btnId) } }
+                catch (e: Exception) { Helpers.toast(this@ChatActivity, if (e is ApiErr) e.message else "Action failed") }
+            }
+        }
+        adapter.onInlineMedia = { m, url ->
+            if (url.endsWith(".mp4", true) || url.endsWith(".webm", true) || url.endsWith(".mov", true))
+                startActivity(Intent(this, VideoPlayerActivity::class.java).putExtra("url", url)
+                    .putExtra("title", m.text.ifEmpty { "Inline media" }))
+            else
+                startActivity(Intent(this, com.telx.app.ui.common.PhotoViewerActivity::class.java).putExtra("url", url))
         }
         recycler.adapter = adapter
         // Telegram-style swipe-to-reply on message rows
@@ -587,7 +646,7 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
     }
 
     private fun sendCurrent() {
-        val t = input.text?.toString()?.trim() ?: ""
+        var t = input.text?.toString()?.trim() ?: ""
         if (t.isEmpty()) return
         if (editing != null) {
             val m = editing!!
@@ -601,22 +660,29 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
             }
             return
         }
+        // v7: custom signature (+ optional {date} placeholder) appended to outgoing texts
+        val sig = Prefs.signature
+        if (sig.isNotEmpty() && editing == null)
+            t = t + "\n— " + sig.replace("{date}",
+                java.text.SimpleDateFormat("d MMM yyyy", java.util.Locale.US).format(java.util.Date()))
         input.setText("")
         clearDraft()
         val rt = replyTo?.id ?: 0
         replyTo = null
         clearReplyBar()
-        sendOptimistic("text", t, null, null, 0, rt, silent = silentSend, anon = anonSend, effect = pendingEffect)
+        sendOptimistic("text", t, null, null, 0, rt, silent = silentSend, anon = anonSend, effect = pendingEffect,
+            ephemeralTo = ephemeralTarget)
         // one-shot send options reset (Telegram behavior)
         silentSend = false
         anonSend = false
         pendingEffect = null
+        ephemeralTarget = 0
     }
 
     private fun sendOptimistic(type: String, text: String, mediaRel: String?, thumbRel: String?, dur: Int, replyId: Int,
                               mediaName: String = "", mediaSize: Long = 0,
                               silent: Boolean = false, anon: Boolean = false,
-                              effect: String? = null, groupId: Long = 0) {
+                              effect: String? = null, groupId: Long = 0, ephemeralTo: Int = 0) {
         val m = Message(JSONObject()
             .put("id", pendingId.decrementAndGet())
             .put("chat_id", chatId)
@@ -629,7 +695,8 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
             .put("media_duration", dur)
             .putOpt("media_name", mediaName)
             .putOpt("media_size", if (mediaSize > 0) mediaSize else null)
-            .put("ts", System.currentTimeMillis() / 1000))
+            .put("ts", System.currentTimeMillis() / 1000)
+            .putOpt("ephemeral_to", if (ephemeralTo > 0) ephemeralTo else null))
         m.state = Message.STATE_PENDING
         messages.add(m)
         adapter.notifyAllChanged()
@@ -641,7 +708,8 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                 val j = withContext(Dispatchers.IO) {
                     Api.send(chatId, type, text, mediaRel, thumbRel, mediaName = mediaName,
                         mediaSize = mediaSize, mediaDuration = dur, replyTo = replyId,
-                        silent = silent, anon = anon, effect = effect, groupId = groupId)
+                        silent = silent, anon = anon, effect = effect, groupId = groupId,
+                        ephemeralTo = ephemeralTo)
                 }
                 val real = Message(j.getJSONObject("message"))
                 val idx = messages.indexOfFirst { it.id == m.id }
@@ -650,7 +718,7 @@ class ChatActivity : AppCompatActivity(), Events.Listener {
                     adapter.notifyMessageChanged(real.id)
                 }
                 adapter.peerDeliveredId = maxOf(adapter.peerDeliveredId, real.id)
-                if (real.effect != null) playEffect(real.effect)
+                if (real.effect != null && !Prefs.powerSaving) playEffect(real.effect)
             } catch (e: Exception) {
                 val idx = messages.indexOfFirst { it.id == m.id }
                 if (idx >= 0) {

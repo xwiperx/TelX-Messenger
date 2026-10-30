@@ -7,6 +7,16 @@
         android:icon="@drawable/ic_search"
         app:showAsAction="always" />
     <item
+        android:id="@+id/chat_gcall"
+        android:title="Group call"
+        android:icon="@drawable/ic_groupcall"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/chat_ai"
+        android:title="AI Assistant"
+        android:icon="@drawable/ic_wand"
+        app:showAsAction="always" />
+    <item
         android:id="@+id/chat_edit"
         android:title="Edit channel"
         android:visible="false"
@@ -66,6 +76,11 @@
     <item
         android:id="@+id/chat_pins"
         android:title="Pinned messages"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/chat_welcome"
+        android:title="Welcome message"
+        android:visible="false"
         app:showAsAction="never" />
     <item
         android:id="@+id/chat_clear"

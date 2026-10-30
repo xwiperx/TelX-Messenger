@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="140dp"
+    android:layout_margin="4dp" app:cardCornerRadius="14dp" app:cardElevation="0dp"
+    app:cardBackgroundColor="@color/tile_bg">
+    <ImageView android:id="@+id/gif_cell_img"
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:scaleType="centerCrop" android:contentDescription="gif" />
+</com.google.android.material.card.MaterialCardView>

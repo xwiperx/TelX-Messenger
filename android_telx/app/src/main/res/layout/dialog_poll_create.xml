@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v7: mighty poll creator — question, up to 10 options, multiple answers, quiz mode -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:paddingStart="22dp" android:paddingEnd="22dp" android:paddingTop="6dp">
+        <EditText android:id="@+id/et_poll_question"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Ask a question…" android:inputType="textMultiLine|textCapSentences"
+            android:maxLines="3" />
+        <LinearLayout android:id="@+id/poll_options_box"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:layout_marginTop="8dp" />
+        <TextView android:id="@+id/btn_poll_add_option"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="＋ Add option" android:textSize="14sp" android:textStyle="bold"
+            android:textColor="@color/tg_blue" android:paddingTop="10dp" android:paddingBottom="10dp" />
+        <TextView android:id="@+id/btn_poll_add_photo"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="🖼 Attach poll photo" android:textSize="14sp" android:textStyle="bold"
+            android:textColor="@color/tg_blue" android:paddingBottom="10dp" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:paddingTop="4dp" android:paddingBottom="8dp">
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/sw_poll_multiple" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Multiple answers"
+                android:textSize="13sp" android:layout_marginEnd="16dp" />
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/sw_poll_quiz" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Quiz mode"
+                android:textSize="13sp" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

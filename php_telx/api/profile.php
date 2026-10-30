@@ -19,6 +19,10 @@ case 'get': {
     $out['verified'] = (int)($u['verified'] ?? 0) === 1;
     $out['scam'] = (int)($u['scam'] ?? 0) === 1;
     if ($is_me) $out['self_destruct_months'] = (int)($u['self_destruct_months'] ?? 0);
+    // v7: profile music + default profile tab
+    $out['profile_music'] = !empty($u['profile_music']) ? absolute_url($u['profile_music']) : null;
+    $out['profile_music_title'] = (string)($u['profile_music_title'] ?? '');
+    $out['profile_tab'] = (int)($u['profile_tab'] ?? 0);
     $st = db()->prepare('SELECT id FROM stories WHERE user_id = ? AND expires_at > UTC_TIMESTAMP() LIMIT 1');
     $st->execute([(int)$u['uid']]);
     $out['has_story'] = (bool)$st->fetch();
@@ -80,11 +84,23 @@ case 'update': {
     if ($pLastSeen !== null) $updates['privacy_last_seen'] = max(0, min(2, (int)$pLastSeen));
     if ($pPhone !== null)    $updates['privacy_phone'] = max(0, min(2, (int)$pPhone));
     if ($pPhoto !== null)     $updates['privacy_photo'] = max(0, min(2, (int)$pPhoto));
+    // v7: profile music (audio track on the profile) + default profile tab
+    $musicRel = p('profile_music');
+    if ($musicRel !== null) $updates['profile_music'] = ($musicRel === '' ? null : $musicRel);
+    $musicTitle = p('profile_music_title');
+    if ($musicTitle !== null) $updates['profile_music_title'] = mb_substr($musicTitle, 0, 96);
+    $pTab = p('profile_tab');
+    if ($pTab !== null) $updates['profile_tab'] = max(0, min(1, (int)$pTab));
     $set = implode(',', array_map(fn($k) => "$k = ?", array_keys($updates)));
     $st = db()->prepare("UPDATE users SET $set WHERE id = ?");
     $st->execute([...array_values($updates), $me['uid']]);
     emit(contact_ids_of((int)$me['uid']), 'profile_updated', ['user_id' => (int)$me['uid']], null, (int)$me['uid']);
-    ok(['user' => user_public(user_by_id((int)$me['uid']), true)]);
+    $u2 = user_by_id((int)$me['uid']);
+    $out2 = user_public($u2, true);
+    $out2['profile_music'] = !empty($u2['profile_music']) ? absolute_url($u2['profile_music']) : null;
+    $out2['profile_music_title'] = (string)($u2['profile_music_title'] ?? '');
+    $out2['profile_tab'] = (int)($u2['profile_tab'] ?? 0);
+    ok(['user' => $out2]);
 }
 
 case 'set_secret_key': {

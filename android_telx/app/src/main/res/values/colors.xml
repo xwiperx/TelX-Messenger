@@ -29,5 +29,10 @@
     <color name="input_bg">#FFFFFF</color>
     <color name="input_bg_dark">#232E3A</color>
     <color name="date_pill">#FFFFFF</color>
+    <!-- v7 Liquid Glass -->
+    <color name="glass_bar">#F2FFFFFF</color>
+    <color name="glass_panel">#F0FFFFFF</color>
+    <color name="glass_stroke">#40FFFFFF</color>
+    <color name="glass_tint">#1A3390EC</color>
     <color name="date_text">#707579</color>
 </resources>

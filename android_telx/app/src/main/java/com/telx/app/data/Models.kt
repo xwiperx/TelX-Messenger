@@ -31,6 +31,10 @@ class User(j: JSONObject) {
     val verified: Boolean = j.optBoolean("verified")
     val scam: Boolean = j.optBoolean("scam")
     val selfDestructMonths: Int = j.optInt("self_destruct_months", 0)
+    // v7: profile music + default profile tab
+    val profileMusic: String? = j.optStringOrNull("profile_music")
+    val profileMusicTitle: String = j.optString("profile_music_title", "")
+    val profileTab: Int = j.optInt("profile_tab", 0)
 
     companion object {
         fun parseArray(arr: JSONArray?): List<User> {
@@ -83,6 +87,12 @@ class Message(j: JSONObject) {
     val effect: String? = j.optStringOrNull("effect")
     val commentTo: Int? = if (j.has("comment_to") && !j.isNull("comment_to")) j.getInt("comment_to") else null
     val commentCount: Int = j.optInt("comment_count", 0)
+    // v7: interactive buttons / inline rich media / ephemeral / recurring / polls
+    val buttons: org.json.JSONArray? = if (j.has("buttons") && !j.isNull("buttons")) j.optJSONArray("buttons") else null
+    val inline: org.json.JSONArray? = if (j.has("inline") && !j.isNull("inline")) j.optJSONArray("inline") else null
+    val ephemeralTo: Int? = if (j.has("ephemeral_to") && !j.isNull("ephemeral_to")) j.getInt("ephemeral_to") else null
+    val repeatEvery: Int = j.optInt("repeat_every", 0)
+    val poll: Poll? = if (j.has("poll") && !j.isNull("poll")) Poll(j.getJSONObject("poll")) else null
     val ts: Long = j.optLong("ts", 0)
     val views: Int = j.optInt("views", 0)
     val mediaJson: JSONObject? = if (j.has("media_json") && !j.isNull("media_json")) j.getJSONObject("media_json") else null
@@ -104,6 +114,33 @@ class Message(j: JSONObject) {
             return out
         }
     }
+}
+
+/** v7: one option of a mighty poll (with optional quiz-correct reveal). */
+class PollOption(j: JSONObject) {
+    val text: String = j.optString("text", "")
+    val votes: Int = j.optInt("votes", 0)
+    val mine: Boolean = j.optBoolean("mine")
+    val correct: Boolean = j.optBoolean("correct")
+}
+
+/** v7: mighty poll — multiple answers, quiz mode, media, user suggestions. */
+class Poll(j: JSONObject) {
+    val id: Int = j.optInt("id")
+    val question: String = j.optString("question", "")
+    val options: List<PollOption> = j.optJSONArray("options")?.let { arr ->
+        (0 until arr.length()).map { PollOption(arr.getJSONObject(it)) }
+    } ?: emptyList()
+    val multiple: Boolean = j.optBoolean("multiple")
+    val quiz: Boolean = j.optBoolean("quiz")
+    val closed: Boolean = j.optBoolean("closed")
+    val totalVotes: Int = j.optInt("total_votes", 0)
+    val voted: Boolean = j.optBoolean("voted")
+    val suggestions: List<Pair<String, Int>> = j.optJSONArray("suggestions")?.let { arr ->
+        (0 until arr.length()).map { val o = arr.getJSONObject(it); o.optString("text") to o.optInt("count") }
+    } ?: emptyList()
+    val media: String? = j.optStringOrNull("media")
+    val thumb: String? = j.optStringOrNull("thumb")
 }
 
 internal fun parseReactions(arr: JSONArray?): List<Reaction> {
@@ -142,10 +179,13 @@ class Chat(j: JSONObject) {
     val joinRequest: Boolean = j.optBoolean("join_request")
     val hidden: Boolean = j.optBoolean("hidden")
     val perms: JSONObject? = if (j.has("perms") && !j.isNull("perms")) j.getJSONObject("perms") else null
+    // v7: welcome message (groups/channels, admin-managed)
+    val welcome: String? = j.optStringOrNull("welcome")
 
     val isChannel: Boolean get() = type == "channel"
     val isGroup: Boolean get() = type == "group"
-    val isAdmin: Boolean get() = (isChannel && myRole == "admin") || (isGroup && myRole == "admin")
+    val isCommunity: Boolean get() = type == "community"
+    val isAdmin: Boolean get() = (isChannel && myRole == "admin") || (isGroup && myRole == "admin") || (isCommunity && myRole == "admin")
 
     /** member permission helper (default: allowed) */
     fun permAllows(right: String): Boolean = perms?.optInt(right, 1) == 1 || isAdmin
@@ -155,6 +195,7 @@ class Chat(j: JSONObject) {
             "saved" -> "Saved Messages"
             "group" -> if (title.isNotEmpty()) title else "Group"
             "channel" -> if (title.isNotEmpty()) title else "Channel"
+            "community" -> if (title.isNotEmpty()) title else "Community"
             else -> peer?.name ?: title
         }
     val displayAvatar: String? get() = if (type == "group" || type == "channel") avatar else peer?.avatar ?: avatar
@@ -177,6 +218,9 @@ class Story(j: JSONObject) {
     val duration: Int = j.optInt("duration", 15)
     val ts: Long = j.optLong("ts", 0)
     val views: Int = j.optInt("views", 0)
+    // v7: live stories + thematic albums
+    val isLive: Boolean = j.optBoolean("is_live")
+    val album: String? = j.optStringOrNull("album")
 
     companion object {
         fun parseArray(arr: org.json.JSONArray?): List<Story> {

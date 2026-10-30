@@ -195,7 +195,9 @@ object Api {
              mediaName: String = "", mediaSize: Long = 0, mediaDuration: Int = 0,
              replyTo: Int = 0, scheduledTs: Long = 0, mediaJson: String? = null,
              stickerFile: String? = null, silent: Boolean = false, anon: Boolean = false,
-             effect: String? = null, groupId: Long = 0, commentTo: Int = 0): JSONObject =
+             effect: String? = null, groupId: Long = 0, commentTo: Int = 0,
+             buttons: String? = null, inlineJson: String? = null,
+             ephemeralTo: Int = 0, repeatEvery: Int = 0): JSONObject =
         call("messages", "send") {
             put("chat_id", chatId); put("type", type); put("text", text)
             if (!mediaRel.isNullOrEmpty()) put("media_rel", mediaRel)
@@ -212,6 +214,11 @@ object Api {
             if (!effect.isNullOrEmpty()) put("effect", effect)
             if (groupId > 0) put("group_id", groupId)
             if (commentTo > 0) put("comment_to", commentTo)
+            // v7: interactive buttons / inline rich media / one-recipient / recurring
+            if (!buttons.isNullOrEmpty()) put("buttons", buttons)
+            if (!inlineJson.isNullOrEmpty()) put("inline_json", inlineJson)
+            if (ephemeralTo > 0) put("ephemeral_to", ephemeralTo)
+            if (repeatEvery > 0) put("repeat_every", repeatEvery)
         }
 
     fun editMessage(messageId: Int, text: String): JSONObject =
@@ -324,14 +331,15 @@ object Api {
     fun unblock(userId: Int) = call("contacts", "unblock") { put("user_id", userId) }
     fun blockedList(): JSONArray = call("contacts", "blocked_list").getJSONArray("blocked")
     fun searchUsers(q: String): JSONArray = call("contacts", "search_users") { put("q", q) }.getJSONArray("users")
-
     // ---------------- profile ----------------
     fun profileGet(userId: Int = 0): JSONObject = call("profile", "get") { if (userId > 0) put("user_id", userId) }
 
     fun profileUpdate(first: String? = null, last: String? = null, bio: String? = null,
                       username: String? = null, privacyLock: Boolean? = null, avatarRel: String? = null,
                       phone: String? = null, privacyLastSeen: Int? = null,
-                      privacyPhone: Int? = null, privacyPhoto: Int? = null): JSONObject =
+                      privacyPhone: Int? = null, privacyPhoto: Int? = null,
+                      profileMusic: String? = null, profileMusicTitle: String? = null,
+                      profileTab: Int? = null): JSONObject =
         call("profile", "update") {
             if (!first.isNullOrEmpty()) put("first", first)
             if (last != null) put("last", last)
@@ -343,22 +351,117 @@ object Api {
             if (privacyLastSeen != null) put("privacy_last_seen", privacyLastSeen)
             if (privacyPhone != null) put("privacy_phone", privacyPhone)
             if (privacyPhoto != null) put("privacy_photo", privacyPhoto)
+            // v7: profile music + default tab
+            if (profileMusic != null) put("profile_music", profileMusic)
+            if (profileMusicTitle != null) put("profile_music_title", profileMusicTitle)
+            if (profileTab != null) put("profile_tab", profileTab)
         }
 
     // ---------------- stories ----------------
     fun storiesFeed(): JSONArray = call("stories", "feed").getJSONArray("feed")
-    fun storyUpload(mediaRel: String, thumbRel: String?, isVideo: Boolean, duration: Int): JSONObject =
+    fun storyUpload(mediaRel: String, thumbRel: String?, isVideo: Boolean, duration: Int,
+                    isLive: Boolean = false, album: String? = null): JSONObject =
         call("stories", "upload") {
             put("media_rel", mediaRel)
             if (thumbRel != null) put("thumb_rel", thumbRel)
             put("media_type", if (isVideo) "video" else "photo")
             put("duration", duration)
+            if (isLive) put("is_live", 1)
+            if (!album.isNullOrEmpty()) put("album", album)
         }
 
     fun storyView(storyId: Int) { tryCall("stories", "view") { put("story_id", storyId) } }
     fun storyViewers(storyId: Int): JSONArray = call("stories", "viewers") { put("story_id", storyId) }.getJSONArray("viewers")
     fun storyMine(): JSONArray = call("stories", "mine").getJSONArray("stories")
     fun storyDelete(storyId: Int) = call("stories", "delete") { put("story_id", storyId) }
+    // v7: live stories + albums + live-chat replies
+    fun storyReply(storyId: Int, text: String) =
+        call("stories", "reply") { put("story_id", storyId); put("text", text) }
+    fun storyReplies(storyId: Int): JSONArray =
+        call("stories", "replies") { put("story_id", storyId) }.getJSONArray("replies")
+    fun storyEndLive(storyId: Int) = call("stories", "end_live") { put("story_id", storyId) }
+
+    // ---------------- v7: mighty polls / to-dos / buttons ----------------
+    fun pollSend(chatId: Int, pollJson: JSONObject, silent: Boolean = false): JSONObject =
+        call("messages", "send") {
+            put("chat_id", chatId); put("type", "poll"); put("poll_json", pollJson)
+            put("text", pollJson.optString("question"))
+            if (silent) put("silent", 1)
+        }
+
+    fun pollGet(messageId: Int): JSONObject =
+        call("messages", "poll_get") { put("message_id", messageId) }.getJSONObject("poll")
+
+    fun pollVote(messageId: Int, optionIdxs: List<Int>, addOption: String? = null): JSONObject =
+        call("messages", "poll_vote") {
+            put("message_id", messageId)
+            put("option_idxs", JSONArray().also { a -> optionIdxs.forEach { a.put(it) } })
+            if (!addOption.isNullOrEmpty()) put("add_option", addOption)
+        }.getJSONObject("poll")
+
+    fun pollClose(messageId: Int) = call("messages", "poll_close") { put("message_id", messageId) }
+
+    fun todoSend(chatId: Int, items: JSONArray): JSONObject =
+        call("messages", "send") {
+            put("chat_id", chatId); put("type", "todo"); put("media_json",
+                JSONObject().put("items", items).toString())
+        }.getJSONObject("message")
+
+    fun todoToggle(messageId: Int, idx: Int, done: Boolean): JSONObject =
+        call("messages", "todo_toggle") {
+            put("message_id", messageId); put("idx", idx); put("done", if (done) 1 else 0)
+        }.getJSONObject("message")
+
+    fun buttonClick(messageId: Int, buttonId: String) =
+        call("messages", "button_click") { put("message_id", messageId); put("button_id", buttonId) }
+
+    // ---------------- v7: communities ----------------
+    fun communityCreate(title: String, description: String, username: String): JSONObject =
+        call("communities", "create") {
+            put("title", title); put("description", description)
+            if (username.isNotEmpty()) put("username", username)
+        }
+
+    fun communityChats(communityId: Int): ArrayList<Chat> =
+        Chat.parseArray(call("communities", "chats") { put("community_id", communityId) }.optJSONArray("chats"))
+
+    fun communityLinkChat(communityId: Int, chatId: Int) =
+        call("communities", "link_chat") { put("community_id", communityId); put("chat_id", chatId) }
+
+    fun communityUnlinkChat(communityId: Int, chatId: Int) =
+        call("communities", "unlink_chat") { put("community_id", communityId); put("chat_id", chatId) }
+
+    fun setWelcome(chatId: Int, text: String) =
+        call("chats", "set_welcome") { put("chat_id", chatId); put("text", text) }
+
+    fun markAllRead() = call("chats", "mark_all_read")
+
+    // ---------------- v7: AI assistant + summaries ----------------
+    fun aiComplete(text: String, mode: String, hint: String = ""): String =
+        call("ai", "complete") { put("text", text); put("mode", mode); put("hint", hint) }
+            .optString("result")
+
+    fun aiSummarize(text: String = "", messageId: Int = 0, chatId: Int = 0, count: Int = 6): String =
+        call("ai", "summarize") {
+            if (text.isNotEmpty()) put("text", text)
+            if (messageId > 0) put("message_id", messageId)
+            if (chatId > 0) put("chat_id", chatId)
+            put("count", count)
+        }.optString("result")
+
+    // ---------------- v7: GIF search ----------------
+    fun gifSearch(q: String): JSONArray =
+        call("gif", "search") { put("q", q) }.getJSONArray("gifs")
+
+    // ---------------- v7: group calls ----------------
+    fun groupCallStart(chatId: Int): JSONObject = call("calls", "group_start") { put("chat_id", chatId) }
+    fun groupCallJoin(chatId: Int, callId: String) =
+        call("calls", "group_join") { put("chat_id", chatId); put("call_id", callId) }
+    fun groupCallLeave(chatId: Int) = call("calls", "group_leave") { put("chat_id", chatId) }
+    fun groupCallParticipants(chatId: Int): JSONObject =
+        call("calls", "group_participants") { put("chat_id", chatId) }
+    fun groupCallEnd(chatId: Int, callId: String) =
+        call("calls", "group_end") { put("chat_id", chatId); put("call_id", callId) }
 
     // ---------------- events (client-paced poll; wait=0 → server replies instantly) ----------------
     fun events(sinceId: Int): JSONObject {

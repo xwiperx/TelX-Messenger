@@ -16,7 +16,65 @@ function msg_v6(array $m, int $viewer, array $commentCounts = []): array {
     $a['comment_to'] = ($m['comment_to'] ?? null) !== null ? (int)$m['comment_to'] : null;
     if ($a['comment_to'] === null)
         $a['comment_count'] = $commentCounts[(int)$m['id']] ?? 0;
+    // v7: interactive buttons / inline rich media / ephemeral / recurring
+    if (!empty($m['buttons'])) $a['buttons'] = json_decode($m['buttons'], true);
+    if (!empty($m['inline_json'])) $a['inline'] = json_decode($m['inline_json'], true);
+    $a['ephemeral_to'] = ($m['ephemeral_to'] ?? null) !== null ? (int)$m['ephemeral_to'] : null;
+    $a['repeat_every'] = (int)($m['repeat_every'] ?? 0);
+    // v7: mighty polls — attach live poll data
+    if (($m['type'] ?? '') === 'poll') {
+        $st = db()->prepare('SELECT id FROM polls WHERE message_id = ?');
+        $st->execute([(int)$m['id']]);
+        $pid = $st->fetch();
+        if ($pid) $a['poll'] = poll_public((int)$pid['id'], $viewer);
+        else $a['poll'] = null;
+    }
     return $a;
+}
+
+/** v7: serialize a poll + results for a viewer. */
+function poll_public(int $pollId, int $viewer): array {
+    $st = db()->prepare('SELECT * FROM polls WHERE id = ?');
+    $st->execute([$pollId]);
+    $p = $st->fetch();
+    if (!$p) return ['id' => 0, 'question' => '', 'options' => []];
+    $options = json_decode($p['options_json'], true) ?: [];
+    $counts = [];
+    $cst = db()->prepare('SELECT option_idx, COUNT(*) c FROM poll_votes WHERE poll_id = ? GROUP BY option_idx');
+    $cst->execute([$pollId]);
+    foreach ($cst->fetchAll() as $r) $counts[(int)$r['option_idx']] = (int)$r['c'];
+    $mine = [];
+    $mst = db()->prepare('SELECT option_idx FROM poll_votes WHERE poll_id = ? AND user_id = ?');
+    $mst->execute([$pollId, $viewer]);
+    foreach ($mst->fetchAll() as $r) $mine[] = (int)$r['option_idx'];
+    $correct = json_decode((string)($p['correct_json'] ?? ''), true) ?: [];
+    $total = array_sum($counts);
+    $outOpts = [];
+    foreach ($options as $i => $label) {
+        $o = ['text' => (string)$label, 'votes' => $counts[$i] ?? 0,
+              'mine' => in_array($i, $mine, true)];
+        // quiz mode: reveal the right answer(s) only after voting or closing
+        if ((int)$p['quiz'] === 1 && ($mine || (int)$p['closed'] === 1))
+            $o['correct'] = in_array($i, $correct, true);
+        $outOpts[] = $o;
+    }
+    $sugg = [];
+    $sst = db()->prepare('SELECT s.option_text, COUNT(*) c FROM poll_suggestions s WHERE s.poll_id = ? GROUP BY s.option_text ORDER BY c DESC LIMIT 8');
+    $sst->execute([$pollId]);
+    foreach ($sst->fetchAll() as $r) $sugg[] = ['text' => (string)$r['option_text'], 'count' => (int)$r['c']];
+    return [
+        'id' => (int)$p['id'],
+        'question' => (string)$p['question'],
+        'options' => $outOpts,
+        'multiple' => (int)$p['multiple'] === 1,
+        'quiz' => (int)$p['quiz'] === 1,
+        'closed' => (int)$p['closed'] === 1,
+        'total_votes' => $total,
+        'voted' => $mine !== [],
+        'suggestions' => $sugg,
+        'media' => $p['media'] ? absolute_url($p['media']) : null,
+        'thumb' => $p['thumb'] ? absolute_url($p['thumb']) : null,
+    ];
 }
 /** fetch comment counts for a set of channel post ids (one grouped query). */
 function comment_counts(array $ids): array {
@@ -52,7 +110,8 @@ case 'list': {
     $beforeId = pint('before_id');
     $limit = max(1, min(60, pint('limit', 40)));
     // main list hides comment-thread replies (they live in their own threads)
-    $sql = 'SELECT * FROM messages WHERE chat_id = ? AND deleted = 0 AND comment_to IS NULL AND scheduled_at IS NULL';
+    // v7: ephemeral messages are visible only to their target user
+    $sql = 'SELECT * FROM messages WHERE chat_id = ? AND deleted = 0 AND comment_to IS NULL AND scheduled_at IS NULL AND (ephemeral_to IS NULL OR ephemeral_to = ' . (int)$me['uid'] . ')';
     $args = [$cid];
     if ($beforeId > 0) { $sql .= ' AND id < ?'; $args[] = $beforeId; }
     $sql .= ' ORDER BY id DESC LIMIT ' . $limit;
@@ -94,7 +153,7 @@ case 'send': {
     if ($chat['type'] === 'channel' && (string)$membership['role'] !== 'admin')
         fail('forbidden', 'Only channel admins can post here');
     $type = p('type') ?? 'text';
-    if (!in_array($type, ['text','photo','file','voice','video','sticker','gif','video_note','location','contact'], true)) fail('invalid', 'Bad message type');
+    if (!in_array($type, ['text','photo','file','voice','video','sticker','gif','video_note','location','contact','poll','todo'], true)) fail('invalid', 'Bad message type');
     // banned members can never post
     if ((string)$membership['role'] === 'banned') fail('banned', 'You are banned in this chat');
     // granular member permissions (admins unaffected)
@@ -139,6 +198,82 @@ case 'send': {
     if ($type === 'sticker' && !(p('sticker'))) fail('invalid', 'sticker id required');
     if ($type === 'location' && !(p('media_json'))) fail('invalid', 'location json required');
     if ($type === 'contact' && !(p('media_json'))) fail('invalid', 'contact json required');
+    // v7: mighty polls — question + 2..10 options (+ optional media + quiz answers)
+    $pollPayload = null;
+    if ($type === 'poll') {
+        $pollPayload = json_decode((string)(p('poll_json') ?? ''), true);
+        if (!is_array($pollPayload)) fail('invalid', 'poll json required');
+        $question = trim((string)($pollPayload['question'] ?? ''));
+        $options = array_values(array_filter(array_map(fn($o) => trim((string)$o),
+            is_array($pollPayload['options'] ?? null) ? $pollPayload['options'] : []), fn($o) => $o !== ''));
+        if (mb_strlen($question) < 2) fail('invalid', 'Poll question is too short');
+        if (count($options) < 2) fail('invalid', 'Poll needs at least 2 options');
+        if (count($options) > 10) $options = array_slice($options, 0, 10);
+        $pollPayload['question'] = $question;
+        $pollPayload['options'] = $options;
+        $text = $question; // chat-list preview
+    }
+    // v7: shared to-do checklist (items live in media_json)
+    if ($type === 'todo') {
+        $items = json_decode((string)(p('media_json') ?? '[]'), true);
+        if (!is_array($items) || $items === []) fail('invalid', 'todo items required');
+        $clean = [];
+        foreach (array_slice($items, 0, 30) as $it)
+            $clean[] = ['t' => mb_substr(trim((string)($it['t'] ?? '')), 0, 120), 'd' => !empty($it['d'])];
+        $clean = array_values(array_filter($clean, fn($x) => $x['t'] !== ''));
+        if (count($clean) === 0) fail('invalid', 'todo items cannot be empty');
+        $mediaJson = json_encode(['items' => $clean], JSON_UNESCAPED_UNICODE);
+        $text = 'Checklist (' . count($clean) . ' items)';
+    }
+    // v7: interactive buttons (max 8, label ≤ 64 chars)
+    $buttonsJson = null;
+    $btnsRaw = p('buttons');
+    if ($btnsRaw !== null && $btnsRaw !== '') {
+        $btns = json_decode($btnsRaw, true);
+        if (!is_array($btns)) fail('invalid', 'bad buttons json');
+        $cleanBtns = [];
+        foreach (array_slice($btns, 0, 8) as $b) {
+            $label = mb_substr(trim((string)($b['label'] ?? '')), 0, 64);
+            if ($label === '') continue;
+            $row = ['label' => $label];
+            if (!empty($b['id'])) $row['id'] = (string)$b['id'];
+            if (!empty($b['url'])) $row['url'] = (string)$b['url'];
+            $cleanBtns[] = $row;
+        }
+        if ($cleanBtns) $buttonsJson = json_encode($cleanBtns, JSON_UNESCAPED_UNICODE);
+    }
+    // v7: inline rich media segments (text+media interleaved, max 12 segments)
+    $inlineJson = null;
+    $inlineRaw = p('inline_json');
+    if ($inlineRaw !== null && $inlineRaw !== '') {
+        $segs = json_decode($inlineRaw, true);
+        if (is_array($segs) && $segs !== []) {
+            $cleanSegs = [];
+            foreach (array_slice($segs, 0, 12) as $s) {
+                $k = (string)($s['type'] ?? 'text');
+                if ($k === 'text') $cleanSegs[] = ['type' => 'text', 'text' => mb_substr((string)($s['text'] ?? ''), 0, 8000)];
+                elseif (in_array($k, ['photo','video','file','music'], true) && !empty($s['media']))
+                    $cleanSegs[] = ['type' => $k, 'media' => (string)$s['media'],
+                        'name' => (string)($s['name'] ?? ''), 'size' => (int)($s['size'] ?? 0)];
+            }
+            if ($cleanSegs) $inlineJson = json_encode($cleanSegs, JSON_UNESCAPED_UNICODE);
+        }
+    }
+    // v7: ephemeral (visible to one target user only) + recurring schedules
+    $ephemeralTo = null;
+    $eph = pint('ephemeral_to');
+    if ($eph > 0 && in_array($chat['type'], ['group', 'channel', 'community'], true)
+        && in_array((string)$membership['role'], ['admin'], true)) {
+        // only admins can address private-to-one messages inside groups
+        if (my_membership($cid, $eph)) $ephemeralTo = $eph;
+    }
+    $repeatEvery = 0;
+    {
+        $rep = pint('repeat_every');
+        if (in_array($rep, [0, 3600, 21600, 86400, 604800], true)) $repeatEvery = $rep;
+    }
+    // v7: rich text limit — long posts up to 32k chars
+    if (mb_strlen($text) > 32768) $text = mb_substr($text, 0, 32768);
     if ($chat['type'] === 'private') {
         $peer = peer_of_private($cid, (int)$me['uid']);
         if ($peer && is_blocked((int)$peer['uid'], (int)$me['uid'])) fail('blocked', 'You cannot message this user');
@@ -160,14 +295,16 @@ case 'send': {
         $autoDeleteAt = sqlts(time() + (int)$chat['auto_delete_secs']);
     $senderName = trim($me['first_name'] . ' ' . $me['last_name']);
     $schedSql = $isScheduled ? sqlts($scheduledTs) : null;
-    $mediaJson = p('media_json');
+    if ($type !== 'todo') $mediaJson = p('media_json');
     db()->prepare("INSERT INTO messages (chat_id, sender_id, sender_name, type, text, media, thumb,
                     media_name, media_size, media_duration, sticker, link_json, media_json, reply_to, group_id,
                     silent, anon, effect, comment_to, encrypted,
+                    buttons, inline_json, ephemeral_to, repeat_every,
                     scheduled_at, auto_delete_at, created_at)
                     VALUES (:chat_id, :sender_id, :sender_name, :type, :text, :media, :thumb,
                             :media_name, :media_size, :media_duration, :sticker, :link_json, :media_json, :reply_to, :group_id,
                             :silent, :anon, :effect, :comment_to, :encrypted,
+                            :buttons, :inline_json, :ephemeral_to, :repeat_every,
                             :scheduled_at, :auto_delete_at, UTC_TIMESTAMP())")
         ->execute(['chat_id' => $cid, 'sender_id' => $me['uid'], 'sender_name' => $senderName, 'type' => $type,
                    'text' => $enc ? $text : ($text !== '' ? $text : null),
@@ -179,21 +316,45 @@ case 'send': {
                    'group_id' => $groupId > 0 ? $groupId : null,
                    'silent' => $silent, 'anon' => $anon, 'effect' => $effect,
                    'comment_to' => $commentTo > 0 ? $commentTo : null,
-                   'encrypted' => $enc ? 1 : 0, 'scheduled_at' => $schedSql, 'auto_delete_at' => $autoDeleteAt]);
+                   'encrypted' => $enc ? 1 : 0,
+                   'buttons' => $buttonsJson, 'inline_json' => $inlineJson,
+                   'ephemeral_to' => $ephemeralTo, 'repeat_every' => $repeatEvery,
+                   'scheduled_at' => $schedSql, 'auto_delete_at' => $autoDeleteAt]);
     $mid = (int)db()->lastInsertId();
+    // v7: create the poll row after the message exists
+    if ($type === 'poll' && $pollPayload) {
+        $multiple = !empty($pollPayload['multiple']) ? 1 : 0;
+        $quiz = !empty($pollPayload['quiz']) ? 1 : 0;
+        $correct = is_array($pollPayload['correct'] ?? null) ? $pollPayload['correct'] : [];
+        if (!$quiz) $correct = [];
+        db()->prepare('INSERT INTO polls (message_id, question, options_json, multiple, quiz, correct_json, media, thumb)
+                       VALUES (?,?,?,?,?,?,?,?)')
+            ->execute([$mid, $pollPayload['question'], json_encode($pollPayload['options'], JSON_UNESCAPED_UNICODE),
+                       $multiple, $quiz, $correct ? json_encode($correct) : null,
+                       $pollPayload['media_rel'] ?? null, $pollPayload['thumb_rel'] ?? null]);
+    }
     $m = message_by_id($mid);
     if (!$isScheduled) {
         // comments only notify the other participants of the thread / chat,
         // and do NOT bump the main chat list entry
         $isComment = $commentTo > 0;
-        if (!$isComment) {
+        if (!$isComment && !$ephemeralTo) {
             db()->prepare('UPDATE chats SET last_message_id = ?, last_message_at = UTC_TIMESTAMP() WHERE id = ? AND (last_message_id IS NULL OR last_message_id < ?)')
                 ->execute([$mid, $cid, $mid]);
-            $up = db()->prepare('UPDATE chat_members SET unread_count = unread_count + 1 WHERE chat_id = ? AND user_id = ?');
-            foreach ($others = chat_member_ids($cid, (int)$me['uid']) as $uid2) $up->execute([$cid, $uid2]);
+            if ($ephemeralTo === null) {
+                $up = db()->prepare('UPDATE chat_members SET unread_count = unread_count + 1 WHERE chat_id = ? AND user_id = ?');
+                foreach ($others = chat_member_ids($cid, (int)$me['uid']) as $uid2) $up->execute([$cid, $uid2]);
+            }
         }
-        foreach (chat_member_ids($cid, (int)$me['uid']) as $uid2)
-            emit($uid2, 'message_new', ['chat_id' => $cid, 'message' => msg_v6($m, $uid2)], $cid, (int)$me['uid']);
+        if ($ephemeralTo !== null) {
+            // private-to-one message: only the target gets the event + unread bump
+            db()->prepare('UPDATE chat_members SET unread_count = unread_count + 1 WHERE chat_id = ? AND user_id = ?')
+                ->execute([$cid, $ephemeralTo]);
+            emit($ephemeralTo, 'message_new', ['chat_id' => $cid, 'message' => msg_v6($m, $ephemeralTo)], $cid, (int)$me['uid']);
+        } else {
+            foreach (chat_member_ids($cid, (int)$me['uid']) as $uid2)
+                emit($uid2, 'message_new', ['chat_id' => $cid, 'message' => msg_v6($m, $uid2)], $cid, (int)$me['uid']);
+        }
         db()->prepare('UPDATE chat_members SET unread_count = 0, last_read_message_id = ?, last_delivered_message_id = ? WHERE chat_id = ? AND user_id = ?')
             ->execute([$mid, $mid, $cid, $me['uid']]);
     }
@@ -535,6 +696,119 @@ case 'scheduled': {
         $out[] = $mp;
     }
     ok(['messages' => $out]);
+}
+
+/* ================= v7: polls / to-dos / buttons ================= */
+
+case 'poll_get': {
+    $me = me();
+    $mid = pint('message_id');
+    $m = message_by_id($mid);
+    if (!$m) fail('not_found', 'Poll not found');
+    require_member((int)$m['chat_id']);
+    $st = db()->prepare('SELECT id FROM polls WHERE message_id = ?');
+    $st->execute([$mid]);
+    $p = $st->fetch();
+    if (!$p) fail('not_found', 'Poll not found');
+    ok(['poll' => poll_public((int)$p['id'], (int)$me['uid']), 'message_id' => $mid]);
+}
+
+case 'poll_vote': {
+    $me = me();
+    $mid = pint('message_id');
+    $m = message_by_id($mid);
+    if (!$m || $m['type'] !== 'poll') fail('not_found', 'Poll not found');
+    $cid = (int)$m['chat_id'];
+    $membership = require_member($cid);
+    if ((string)$membership['role'] === 'banned') fail('banned', 'You are banned in this chat');
+    $st = db()->prepare('SELECT * FROM polls WHERE message_id = ?');
+    $st->execute([$mid]);
+    $p = $st->fetch();
+    if (!$p) fail('not_found', 'Poll not found');
+    if ((int)$p['closed'] === 1) fail('closed', 'This poll is closed');
+
+    // optional: suggest a brand-new option (open polls only)
+    $suggestion = trim((string)(p('add_option') ?? ''));
+    if ($suggestion !== '' && (int)$p['quiz'] !== 1) {
+        $suggestion = mb_substr($suggestion, 0, 100);
+        db()->prepare('INSERT IGNORE INTO poll_suggestions (poll_id, user_id, option_text, created_at)
+                       VALUES (?,?,?,UTC_TIMESTAMP())')->execute([(int)$p['id'], $me['uid'], $suggestion]);
+        emit(chat_member_ids($cid), 'poll_updated', ['chat_id' => $cid, 'message_id' => $mid], $cid, (int)$me['uid']);
+        ok(['poll' => poll_public((int)$p['id'], (int)$me['uid']), 'suggested' => true]);
+    }
+
+    $options = json_decode((string)$p['options_json'], true) ?: [];
+    $idxs = array_map('intval', parr('option_idxs'));
+    $idxs = array_values(array_filter($idxs, fn($i) => $i >= 0 && $i < count($options)));
+    if (!$idxs) fail('invalid', 'Pick at least one option');
+    if ((int)$p['multiple'] !== 1) $idxs = [$idxs[0]];   // single-answer polls keep one vote
+    if ((int)$p['quiz'] === 1) {
+        // quiz: one shot only — vote once, no changing
+        $had = db()->prepare('SELECT id FROM poll_votes WHERE poll_id = ? AND user_id = ? LIMIT 1');
+        $had->execute([(int)$p['id'], $me['uid']]);
+        if ($had->fetch()) fail('voted', 'You already answered this quiz');
+    }
+    db()->prepare('DELETE FROM poll_votes WHERE poll_id = ? AND user_id = ?')->execute([(int)$p['id'], $me['uid']]);
+    foreach (array_unique($idxs) as $i)
+        db()->prepare('INSERT INTO poll_votes (poll_id, user_id, option_idx, created_at) VALUES (?,?,?,UTC_TIMESTAMP())')
+            ->execute([(int)$p['id'], $me['uid'], $i]);
+    emit(chat_member_ids($cid, (int)$me['uid']), 'poll_updated', ['chat_id' => $cid, 'message_id' => $mid], $cid, (int)$me['uid']);
+    ok(['poll' => poll_public((int)$p['id'], (int)$me['uid'])]);
+}
+
+case 'poll_close': {
+    $me = me();
+    $mid = pint('message_id');
+    $m = message_by_id($mid);
+    if (!$m || $m['type'] !== 'poll') fail('not_found', 'Poll not found');
+    $cid = (int)$m['chat_id'];
+    if ((int)$m['sender_id'] !== (int)$me['uid'] && (string)(my_membership($cid, (int)$me['uid'])['role'] ?? '') !== 'admin')
+        fail('forbidden', 'Only the poll author or admins can stop it');
+    db()->prepare('UPDATE polls SET closed = 1 WHERE message_id = ?')->execute([$mid]);
+    emit(chat_member_ids($cid), 'poll_updated', ['chat_id' => $cid, 'message_id' => $mid], $cid, (int)$me['uid']);
+    ok(['closed' => $mid]);
+}
+
+case 'todo_toggle': {
+    $me = me();
+    $mid = pint('message_id');
+    $idx = pint('idx');
+    $done = pint('done') === 1;
+    $m = message_by_id($mid);
+    if (!$m || $m['type'] !== 'todo') fail('not_found', 'Checklist not found');
+    $cid = (int)$m['chat_id'];
+    require_member($cid);
+    $j = json_decode((string)($m['media_json'] ?? ''), true);
+    $items = $j['items'] ?? [];
+    if ($idx < 0 || $idx >= count($items)) fail('invalid', 'Bad item index');
+    $items[$idx]['d'] = $done;
+    db()->prepare('UPDATE messages SET media_json = ? WHERE id = ?')
+        ->execute([json_encode(['items' => array_values($items)], JSON_UNESCAPED_UNICODE), $mid]);
+    $m = message_by_id($mid);
+    emit(chat_member_ids($cid), 'message_edited',
+        ['chat_id' => $cid, 'message' => msg_v6($m, 0)], $cid, (int)$me['uid']);
+    ok(['message' => msg_v6($m, (int)$me['uid'])]);
+}
+
+case 'button_click': {
+    $me = me();
+    $mid = pint('message_id');
+    $btnId = (string)(p('button_id') ?? '');
+    $m = message_by_id($mid);
+    if (!$m) fail('not_found', 'Message not found');
+    $cid = (int)$m['chat_id'];
+    require_member($cid);
+    if (empty($m['buttons'])) fail('invalid', 'No buttons on this message');
+    $btns = json_decode((string)$m['buttons'], true) ?: [];
+    $btn = null;
+    foreach ($btns as $b) if ((string)($b['id'] ?? $b['label'] ?? '') === $btnId) { $btn = $b; break; }
+    if (!$btn) fail('invalid', 'Button not found');
+    $chat = chat_of($cid);
+    emit(chat_member_ids($cid, (int)$me['uid']), 'button_clicked',
+        ['chat_id' => $cid, 'message_id' => $mid, 'button' => $btn,
+         'clicker' => user_public(user_by_id((int)$me['uid'])),
+         'title' => (string)($chat['title'] ?? '')], $cid, (int)$me['uid']);
+    ok(['button' => $btn]);
 }
 
 default: fail('unknown_action', 'Unknown messages action');

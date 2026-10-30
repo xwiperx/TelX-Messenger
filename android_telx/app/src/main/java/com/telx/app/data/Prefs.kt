@@ -144,6 +144,33 @@ object Prefs {
         get() = sp.getString("recent_chats", "[]") ?: "[]"
         set(v) = sp.edit().putString("recent_chats", v).apply()
 
+    // ---------------- v7 additions ----------------
+
+    /** Power Saving mode: disables animations/autoplay to save battery. */
+    var powerSaving: Boolean
+        get() = sp.getBoolean("power_saving", false)
+        set(v) = sp.edit().putBoolean("power_saving", v).apply()
+
+    /** auto-enable Power Saving below this battery percentage (0 = never). */
+    var powerSavingThreshold: Int
+        get() = sp.getInt("power_saving_threshold", 20)
+        set(v) = sp.edit().putInt("power_saving_threshold", v).apply()
+
+    /** message signature appended to outgoing texts ("" = off). */
+    var signature: String
+        get() = sp.getString("msg_signature", "") ?: ""
+        set(v) = sp.edit().putString("msg_signature", v).apply()
+
+    /** quick biometric login (passkey-style) enabled flag + encrypted creds handle. */
+    var quickLogin: Boolean
+        get() = sp.getBoolean("quick_login", false)
+        set(v) = sp.edit().putBoolean("quick_login", v).apply()
+
+    /** encrypted quick-login credentials blob (AES/GCM via Android Keystore). */
+    var quickLoginBlob: String
+        get() = sp.getString("quick_login_blob", "") ?: ""
+        set(v) = sp.edit().putString("quick_login_blob", v).apply()
+
     fun isChatLocked(chatId: Int): Boolean {
         return try {
             val arr = org.json.JSONArray(lockedChats)

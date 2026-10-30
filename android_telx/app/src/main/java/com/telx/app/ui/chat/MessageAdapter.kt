@@ -37,9 +37,19 @@ class MessageAdapter(
     var onTagClick: ((kind: String, value: String) -> Unit)? = null
     var onCommentsClick: ((Message) -> Unit)? = null
     var onEffect: ((String) -> Unit)? = null
+    // v7 callbacks: mighty polls / to-dos / interactive buttons
+    var onPollVote: ((Message, Int) -> Unit)? = null          // tap an option → vote (single or add)
+    var onPollClose: ((Message) -> Unit)? = null               // author stops the poll
+    var onPollSuggest: ((Message) -> Unit)? = null             // open polls: suggest a new option
+    var onTodoToggle: ((Message, Int, Boolean) -> Unit)? = null// tap a checklist item
+    var onButtonClick: ((Message, String, String?) -> Unit)? = null // id, url
+    var onInlineMedia: ((Message, String) -> Unit)? = null     // inline photo/video tap → viewer
 
     /** show sender names above other people's messages (group / channel) */
     @Volatile var showSenderNames: Boolean = false
+
+    /** v7: viewer is an admin here → may stop polls / edit welcome etc. */
+    @Volatile var amAdmin: Boolean = false
 
     /** channel context → show 💬 comment buttons on posts */
     @Volatile var isChannel: Boolean = false
@@ -207,6 +217,18 @@ class MessageAdapter(
         private val contactName: TextView = v.findViewById(R.id.msg_contact_name)
         private val contactUsername: TextView = v.findViewById(R.id.msg_contact_username)
         private val roundVideo: ImageView = v.findViewById(R.id.msg_round_video)
+        // v7 blocks: ephemeral tag / inline rich media / mighty poll / to-do / buttons
+        private val ephemeralTag: TextView? = try { v.findViewById(R.id.msg_ephemeral) } catch (_: Exception) { null }
+        private val inlineBlock: LinearLayout? = try { v.findViewById(R.id.msg_inline_block) } catch (_: Exception) { null }
+        private val pollBlock: LinearLayout? = try { v.findViewById(R.id.msg_poll_block) } catch (_: Exception) { null }
+        private val pollQuestion: TextView? = try { v.findViewById(R.id.poll_question) } catch (_: Exception) { null }
+        private val pollMedia: ImageView? = try { v.findViewById(R.id.poll_media) } catch (_: Exception) { null }
+        private val pollOptions: LinearLayout? = try { v.findViewById(R.id.poll_options) } catch (_: Exception) { null }
+        private val pollMeta: TextView? = try { v.findViewById(R.id.poll_meta) } catch (_: Exception) { null }
+        private val todoBlock: LinearLayout? = try { v.findViewById(R.id.msg_todo_block) } catch (_: Exception) { null }
+        private val todoItems: LinearLayout? = try { v.findViewById(R.id.todo_items) } catch (_: Exception) { null }
+        private val todoMeta: TextView? = try { v.findViewById(R.id.todo_meta) } catch (_: Exception) { null }
+        private val buttonsBox: LinearLayout? = try { v.findViewById(R.id.msg_buttons) } catch (_: Exception) { null }
 
         fun bind(m: Message) {
             val ctx = itemView.context
@@ -230,7 +252,8 @@ class MessageAdapter(
             }
 
             // ---------- v6: effects (confetti / fireworks / hearts) ----------
-            if (m.effect != null && m.id > 0 && m.id !in MessageAdapter.effectsPlayed) {
+            // v7: Power Saving mode skips the celebration animations
+            if (m.effect != null && m.id > 0 && m.id !in MessageAdapter.effectsPlayed && !Prefs.powerSaving) {
                 MessageAdapter.effectsPlayed.add(m.id)
                 adapter.onEffect?.invoke(m.effect)
             }
@@ -465,6 +488,200 @@ class MessageAdapter(
                 }
             }
 
+            // ---------- v7: ephemeral tag (private-to-one message) ----------
+            if (ephemeralTag != null)
+                ephemeralTag.visibility = if (m.ephemeralTo != null && m.ephemeralTo == Prefs.myId)
+                    View.VISIBLE else View.GONE
+
+            // ---------- v7: inline rich media segments (media embedded inside text) ----------
+            if (inlineBlock != null) {
+                inlineBlock.removeAllViews()
+                val segs = m.inline
+                if (segs == null || segs.length() == 0) inlineBlock.visibility = View.GONE
+                else {
+                    inlineBlock.visibility = View.VISIBLE
+                    for (i in 0 until segs.length()) {
+                        val seg = segs.optJSONObject(i) ?: continue
+                        when (seg.optString("type")) {
+                            "text" -> {
+                                val t = TextView(ctx)
+                                t.textSize = 15.5f * Prefs.chatFontScale
+                                t.setTextColor(if (m.isMine) 0xFFFFFFFF.toInt() else 0xFF000000.toInt())
+                                RichText.set(t, seg.optString("text")) { k, v ->
+                                    adapter.onTagClick?.invoke(k, v)
+                                }
+                                inlineBlock.addView(t)
+                            }
+                            "photo", "video" -> {
+                                val url = seg.optString("media")
+                                val img = ImageView(ctx)
+                                img.layoutParams = LinearLayout.LayoutParams(
+                                    LinearLayout.LayoutParams.MATCH_PARENT, Helpers.dp(ctx, 180))
+                                    .also { it.bottomMargin = Helpers.dp(ctx, 6) }
+                                img.scaleType = ImageView.ScaleType.CENTER_CROP
+                                if (Prefs.powerSaving) img.setImageResource(R.drawable.media_placeholder)
+                                else Glide.with(img).load(url).placeholder(R.drawable.media_placeholder)
+                                    .centerCrop().into(img)
+                                img.setOnClickListener { adapter.onInlineMedia?.invoke(m, url) }
+                                inlineBlock.addView(img)
+                            }
+                            "file", "music" -> {
+                                val url = seg.optString("media")
+                                val name = seg.optString("name").ifEmpty { seg.optString("media").substringAfterLast('/') }
+                                val row = TextView(ctx)
+                                row.text = (if (seg.optString("type") == "music") "🎵 " else "📄 ") + name
+                                row.textSize = 14f
+                                row.setTextColor(if (m.isMine) 0xFFD8E9FF.toInt() else 0xFF3390EC.toInt())
+                                row.setPadding(0, Helpers.dp(ctx, 4), 0, Helpers.dp(ctx, 6))
+                                row.setOnClickListener { adapter.onInlineMedia?.invoke(m, url) }
+                                inlineBlock.addView(row)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ---------- v7: mighty poll (options + quiz reveal + suggestions) ----------
+            if (pollBlock != null) {
+                val p = m.poll
+                if (p == null || m.type != "poll") pollBlock.visibility = View.GONE
+                else {
+                    pollBlock.visibility = View.VISIBLE
+                    pollQuestion?.text = "📊 " + p.question
+                    if (pollMedia != null) {
+                        val pm = p.media
+                        if (!pm.isNullOrEmpty() && !Prefs.powerSaving) {
+                            pollMedia.visibility = View.VISIBLE
+                            Glide.with(pollMedia).load(pm).centerCrop().into(pollMedia)
+                        } else pollMedia.visibility = View.GONE
+                    }
+                    pollOptions?.removeAllViews()
+                    val total = p.totalVotes.coerceAtLeast(0)
+                    p.options.forEachIndexed { idx, opt ->
+                        val row = LinearLayout(ctx)
+                        row.orientation = LinearLayout.HORIZONTAL
+                        row.setPadding(0, Helpers.dp(ctx, 6), 0, Helpers.dp(ctx, 6))
+                        val pct = if (total > 0) opt.votes * 100 / total else 0
+                        val mark = TextView(ctx)
+                        mark.text = when {
+                            opt.mine -> "🔵"
+                            p.quiz && p.voted && opt.correct -> "✅"
+                            p.quiz && p.voted -> "❌"
+                            else -> "⚪"
+                        }
+                        mark.textSize = 14f
+                        val label = TextView(ctx)
+                        label.text = if (p.voted || p.closed) "$pct%  ${opt.text}" else opt.text
+                        label.textSize = 14.5f
+                        label.setTextColor(if (m.isMine) 0xFFFFFFFF.toInt() else 0xFF000000.toInt())
+                        label.layoutParams = LinearLayout.LayoutParams(0,
+                            LinearLayout.LayoutParams.WRAP_CONTENT, 1f).also { it.marginStart = Helpers.dp(ctx, 10) }
+                        val votes = TextView(ctx)
+                        votes.text = if (p.voted || p.closed) "${opt.votes}" else ""
+                        votes.textSize = 12f
+                        votes.setTextColor(0xFF8A8A8E.toInt())
+                        row.addView(mark); row.addView(label); row.addView(votes)
+                        row.setOnClickListener {
+                            if (!p.closed && !p.quiz) adapter.onPollVote?.invoke(m, idx)
+                            else Helpers.toast(ctx, if (p.closed) "This poll is closed" else "You already answered")
+                        }
+                        pollOptions?.addView(row)
+                    }
+                    // open polls: viewers may suggest brand-new options
+                    if (!p.quiz && !p.closed && p.suggestions.isNotEmpty()) {
+                        p.suggestions.take(3).forEach { (s, cnt) ->
+                            val srow = TextView(ctx)
+                            srow.text = "💡 $s ($cnt)"
+                            srow.textSize = 13.5f
+                            srow.setTextColor(0xFF8A8A8E.toInt())
+                            srow.setPadding(Helpers.dp(ctx, 4), Helpers.dp(ctx, 2), 0, Helpers.dp(ctx, 2))
+                            srow.setOnClickListener { adapter.onPollVote?.invoke(m, -1) }
+                            pollOptions?.addView(srow)
+                        }
+                    }
+                    if (!p.quiz && !p.closed)
+                        pollOptions?.addView(TextView(ctx).apply {
+                            text = "＋ Suggest an option"
+                            textSize = 13.5f
+                            setTextColor(0xFF3390EC.toInt())
+                            setPadding(Helpers.dp(ctx, 4), Helpers.dp(ctx, 8), 0, 0)
+                            setOnClickListener { adapter.onPollSuggest?.invoke(m) }
+                        })
+                    pollMeta?.text = buildString {
+                        if (p.closed) append("Final results · ")
+                        append(if (total == 1) "1 vote" else "$total votes")
+                        if (p.multiple) append(" · multiple answers")
+                        if (p.quiz) append(" · quiz")
+                        if (m.isMine || adapter.amAdmin) {
+                            append(" · ")
+                            append(if (p.closed) "closed" else "tap an option to vote · long-press to stop")
+                        }
+                    }
+                    pollBlock.setOnLongClickListener {
+                        if (!p.closed && (m.isMine || adapter.amAdmin)) adapter.onPollClose?.invoke(m)
+                        true
+                    }
+                }
+            }
+
+            // ---------- v7: shared to-do checklist ----------
+            if (todoBlock != null) {
+                val items = m.mediaJson?.optJSONArray("items")
+                if (m.type != "todo" || items == null || items.length() == 0) todoBlock.visibility = View.GONE
+                else {
+                    todoBlock.visibility = View.VISIBLE
+                    todoItems?.removeAllViews()
+                    var doneCount = 0
+                    for (i in 0 until items.length()) {
+                        val it = items.optJSONObject(i) ?: continue
+                        val done = it.optBoolean("d")
+                        if (done) doneCount++
+                        val row = TextView(ctx)
+                        row.text = (if (done) "☑ " else "☐ ") + it.optString("t")
+                        row.textSize = 14.5f
+                        row.setTextColor(if (done) 0xFF8A8A8E.toInt()
+                            else if (m.isMine) 0xFFFFFFFF.toInt() else 0xFF000000.toInt())
+                        row.setPadding(0, Helpers.dp(ctx, 3), 0, Helpers.dp(ctx, 3))
+                        val idx = i
+                        row.setOnClickListener { adapter.onTodoToggle?.invoke(m, idx, !done) }
+                        todoItems?.addView(row)
+                    }
+                    todoMeta?.text = "✅ $doneCount of ${items.length()} done"
+                }
+            }
+
+            // ---------- v7: interactive buttons under the message ----------
+            if (buttonsBox != null) {
+                buttonsBox.removeAllViews()
+                val btns = m.buttons
+                if (btns == null || btns.length() == 0) buttonsBox.visibility = View.GONE
+                else {
+                    buttonsBox.visibility = View.VISIBLE
+                    for (i in 0 until btns.length()) {
+                        val b = btns.optJSONObject(i) ?: continue
+                        val pill = TextView(ctx)
+                        pill.text = b.optString("label")
+                        pill.textSize = 14f
+                        pill.gravity = android.view.Gravity.CENTER
+                        pill.setTextColor(0xFFFFFFFF.toInt())
+                        pill.typeface = android.graphics.Typeface.DEFAULT_BOLD
+                        val bg = android.graphics.drawable.GradientDrawable()
+                        bg.setColor(0x803390EC.toInt())
+                        bg.cornerRadius = Helpers.dp(ctx, 18).toFloat()
+                        pill.background = bg
+                        pill.setPadding(Helpers.dp(ctx, 14), Helpers.dp(ctx, 8), Helpers.dp(ctx, 14), Helpers.dp(ctx, 8))
+                        val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT)
+                        lp.bottomMargin = Helpers.dp(ctx, 6)
+                        pill.layoutParams = lp
+                        val bid = b.optString("id", b.optString("label"))
+                        val burl = if (b.has("url")) b.optString("url") else null
+                        pill.setOnClickListener { adapter.onButtonClick?.invoke(m, bid, burl) }
+                        buttonsBox.addView(pill)
+                    }
+                }
+            }
+
             // v6: comment button on channel posts
             if (commentsBtn != null) {
                 if (adapter.isChannel && m.commentTo == null && m.id > 0) {
@@ -568,6 +785,25 @@ class MessageAdapter(
                 } else {
                     adapter.onMessageClick?.invoke(m)
                 }
+            }
+            // v7: double-tap the bubble → instant ❤️ reaction (Telegram-style)
+            if (itemView.getTag(R.id.msg_text) !is android.view.GestureDetector) {
+                val gd = android.view.GestureDetector(ctx, object : android.view.GestureDetector.SimpleOnGestureListener() {
+                    override fun onDoubleTap(e: android.view.MotionEvent): Boolean {
+                        // resolve the CURRENT row (holders are recycled — never capture `m`)
+                        val pos = bindingAdapterPosition
+                        val cur = if (pos >= 0) adapter.messageAtRow(pos) else null
+                        if (cur != null && cur.id > 0 && cur.type != "system")
+                            adapter.onReactClick?.invoke(cur,
+                                if (cur.reactions.any { it.mine && it.emoji == "❤️" }) null else "❤️")
+                        return true
+                    }
+                })
+                itemView.setTag(R.id.msg_text, gd)
+            }
+            itemView.setOnTouchListener { _, ev ->
+                (itemView.getTag(R.id.msg_text) as? android.view.GestureDetector)?.onTouchEvent(ev)
+                false
             }
             itemView.setOnLongClickListener { adapter.onMessageLongClick?.invoke(m); true }
         }
