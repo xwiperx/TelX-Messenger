@@ -15,6 +15,20 @@ function call_target(int $chat_id): array {
     return $peer;
 }
 
+/* ============ v7: secure group calls (participant registry + events) ============ */
+
+/** any group/channel/community chat where the caller is a member. */
+function group_call_target(int $chat_id): array {
+    $me = me();
+    $chat = chat_of($chat_id);
+    if (!$chat || !in_array($chat['type'], ['group', 'channel', 'community'], true))
+        fail('invalid', 'Group calls work in groups, channels and communities');
+    $m = my_membership($chat_id, (int)$me['uid']);
+    if (!$m) fail('forbidden', 'You are not a member of this chat');
+    if ((string)$m['role'] === 'banned') fail('banned', 'You are banned in this chat');
+    return $chat;
+}
+
 switch ($action) {
 
 case 'start': {
@@ -71,20 +85,6 @@ case 'end': {
     $peer = call_target($cid);
     emit((int)$peer['uid'], 'call_end', ['call_id' => p('call_id')], $cid, (int)$me['uid']);
     ok();
-}
-
-/* ============ v7: secure group calls (participant registry + events) ============ */
-
-/** any group/channel/community chat where the caller is a member. */
-function group_call_target(int $chat_id): array {
-    $me = me();
-    $chat = chat_of($chat_id);
-    if (!$chat || !in_array($chat['type'], ['group', 'channel', 'community'], true))
-        fail('invalid', 'Group calls work in groups, channels and communities');
-    $m = my_membership($chat_id, (int)$me['uid']);
-    if (!$m) fail('forbidden', 'You are not a member of this chat');
-    if ((string)$m['role'] === 'banned') fail('banned', 'You are banned in this chat');
-    return $chat;
 }
 
 case 'group_start': {

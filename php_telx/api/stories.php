@@ -86,7 +86,7 @@ case 'upload': {
     else $album = null;
     $ttl = $isLive ? 4 * 3600 : STORY_TTL;   // live stories last up to 4h
     $st = db()->prepare('INSERT INTO stories (user_id, media, thumb, media_type, duration, is_live, album, created_at, expires_at)
-                         VALUES (?,?,?,?,?,?,?,?, UTC_TIMESTAMP() + INTERVAL ? SECOND)');
+                         VALUES (?,?,?,?,?,?,?, UTC_TIMESTAMP(), UTC_TIMESTAMP() + INTERVAL ? SECOND)');
     $st->execute([$me['uid'], $mediaRel, $thumbRel, $type, $duration, $isLive, $album, $ttl]);
     $sid = (int)db()->lastInsertId();
     emit(contact_ids_of((int)$me['uid']), 'story_new', ['story_id' => $sid, 'user' => user_public(user_by_id((int)$me['uid'])), 'is_live' => $isLive], null, (int)$me['uid']);

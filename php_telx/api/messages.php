@@ -199,9 +199,13 @@ case 'send': {
     if ($type === 'location' && !(p('media_json'))) fail('invalid', 'location json required');
     if ($type === 'contact' && !(p('media_json'))) fail('invalid', 'contact json required');
     // v7: mighty polls — question + 2..10 options (+ optional media + quiz answers)
+    // poll_json may arrive as a nested JSON object (Android client) or an encoded string;
+    // p() only returns scalars, so read the raw body value here.
     $pollPayload = null;
     if ($type === 'poll') {
-        $pollPayload = json_decode((string)(p('poll_json') ?? ''), true);
+        $bRaw = body();
+        $pollRaw = $bRaw['poll_json'] ?? null;
+        $pollPayload = is_array($pollRaw) ? $pollRaw : json_decode((string)($pollRaw ?? ''), true);
         if (!is_array($pollPayload)) fail('invalid', 'poll json required');
         $question = trim((string)($pollPayload['question'] ?? ''));
         $options = array_values(array_filter(array_map(fn($o) => trim((string)$o),
@@ -213,10 +217,14 @@ case 'send': {
         $pollPayload['options'] = $options;
         $text = $question; // chat-list preview
     }
-    // v7: shared to-do checklist (items live in media_json)
+    // v7: shared to-do checklist (items live in media_json — string or nested object from the client)
     if ($type === 'todo') {
-        $items = json_decode((string)(p('media_json') ?? '[]'), true);
-        if (!is_array($items) || $items === []) fail('invalid', 'todo items required');
+        $bRaw = body();
+        $itemsRaw = $bRaw['media_json'] ?? null;
+        $items = is_array($itemsRaw) ? $itemsRaw : json_decode((string)($itemsRaw ?? '[]'), true);
+        if (!is_array($items)) $items = [];
+        if (isset($items['items']) && is_array($items['items'])) $items = $items['items'];
+        if ($items === []) fail('invalid', 'todo items required');
         $clean = [];
         foreach (array_slice($items, 0, 30) as $it)
             $clean[] = ['t' => mb_substr(trim((string)($it['t'] ?? '')), 0, 120), 'd' => !empty($it['d'])];
@@ -227,9 +235,10 @@ case 'send': {
     }
     // v7: interactive buttons (max 8, label ≤ 64 chars)
     $buttonsJson = null;
-    $btnsRaw = p('buttons');
+    $bRaw = body();
+    $btnsRaw = $bRaw['buttons'] ?? null;
     if ($btnsRaw !== null && $btnsRaw !== '') {
-        $btns = json_decode($btnsRaw, true);
+        $btns = is_array($btnsRaw) ? $btnsRaw : json_decode($btnsRaw, true);
         if (!is_array($btns)) fail('invalid', 'bad buttons json');
         $cleanBtns = [];
         foreach (array_slice($btns, 0, 8) as $b) {
@@ -244,9 +253,9 @@ case 'send': {
     }
     // v7: inline rich media segments (text+media interleaved, max 12 segments)
     $inlineJson = null;
-    $inlineRaw = p('inline_json');
+    $inlineRaw = $bRaw['inline_json'] ?? null;
     if ($inlineRaw !== null && $inlineRaw !== '') {
-        $segs = json_decode($inlineRaw, true);
+        $segs = is_array($inlineRaw) ? $inlineRaw : json_decode($inlineRaw, true);
         if (is_array($segs) && $segs !== []) {
             $cleanSegs = [];
             foreach (array_slice($segs, 0, 12) as $s) {
